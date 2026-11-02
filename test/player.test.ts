@@ -5,6 +5,7 @@ import { renderTrackCard, renderCompactTicker } from '../src/ui/card.ts';
 import { renderProgressBar, renderVolumeBar } from '../src/ui/progress.ts';
 import { stripAnsi } from '../src/ui/ansi.ts';
 import { parseVolumeInput } from '../src/spotify/applescript.ts';
+import { renderBanner, applyGradient, DEFAULT_GRADIENT_STOPS } from '../src/ui/banner.ts';
 import type { TrackInfo } from '../src/spotify/types.ts';
 
 const mockTrack: TrackInfo = {
@@ -36,6 +37,18 @@ test('Volume bar renders percentage and visual segments', () => {
   const raw = stripAnsi(volBar);
   assert.ok(raw.includes('80%'));
   assert.ok(raw.includes('■'));
+});
+
+test('Track card renders accurately in Green theme (default)', () => {
+  setTheme('green');
+  const card = renderTrackCard(mockTrack);
+  const raw = stripAnsi(card);
+
+  assert.ok(raw.includes('Spotify Player'));
+  assert.ok(raw.includes('PLAYING'));
+  assert.ok(raw.includes('Bohemian Rhapsody'));
+  assert.ok(raw.includes('Queen'));
+  assert.equal(getTheme().name, 'green');
 });
 
 test('Track card renders accurately in Gemini theme', () => {
@@ -94,5 +107,17 @@ test('parseVolumeInput handles multiple and various volume patterns', () => {
 
   // Direct absolute target
   assert.deepEqual(parseVolumeInput('85'), { type: 'set', value: 85 });
+});
+
+test('renderBanner generates gradient banner with Leaf Green, Bottle Green and White', () => {
+  const banner = renderBanner();
+  assert.ok(banner.length > 0);
+  const raw = stripAnsi(banner);
+  assert.ok(raw.includes('██') || raw.includes('___'));
+
+  // Test custom gradient application
+  const testLines = ['SPOTIFY-CLI'];
+  const colored = applyGradient(testLines, DEFAULT_GRADIENT_STOPS, 0.15, true);
+  assert.ok(colored.includes('\x1b[38;2;'));
 });
 

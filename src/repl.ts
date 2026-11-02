@@ -20,6 +20,7 @@ import {
 } from './spotify/applescript.ts';
 import { fetchLyrics } from './spotify/lyrics.ts';
 import { renderTrackCard, renderCompactTicker, renderHelpCard } from './ui/card.ts';
+import { renderBanner } from './ui/banner.ts';
 import { createSpinner } from './ui/spinner.ts';
 import { runLiveHUD } from './ui/live-ticker.ts';
 import { promptSelect } from './ui/selector.ts';
@@ -67,12 +68,12 @@ export async function startRepl(): Promise<void> {
 
   const printBanner = async () => {
     const theme = getTheme();
-    process.stdout.write('\n');
+    process.stdout.write('\n' + renderBanner() + '\n\n');
     process.stdout.write(
-      `  ${theme.primary(theme.symbol)} ${bold(theme.heading('Spotify CLI'))} ${theme.muted(dim('v1.0.0'))} ${theme.border('─')} ${theme.accent(theme.name.toUpperCase())}\n`
+      `  ${theme.primary(theme.symbol)} ${bold(theme.heading('SPOTIFY-CLI'))} ${theme.muted(dim('v1.0.0'))} ${theme.border('─')} ${theme.accent('macOS Native')} ${theme.border('─')} ${theme.muted('Theme:')} ${theme.secondary(theme.name.toUpperCase())}\n`
     );
     process.stdout.write(
-      `  ${theme.muted('Operate Spotify seamlessly from your terminal. Type')} ${theme.primary('/help')} ${theme.muted('or')} ${theme.primary('/watch')}.\n\n`
+      `  ${theme.muted('Operate Spotify seamlessly from terminal. Type')} ${theme.primary('/help')} ${theme.muted('for commands,')} ${theme.primary('/watch')} ${theme.muted('for live monitor.')}\n\n`
     );
 
     const isRunning = await isSpotifyRunning();
@@ -412,7 +413,9 @@ export async function startRepl(): Promise<void> {
             validThemes.map((t) => ({
               title: t.toUpperCase(),
               subtitle:
-                t === 'gemini'
+                t === 'green'
+                  ? 'Leaf Green, Bottle Green & Pure White (Default)'
+                  : t === 'gemini'
                   ? 'Celestial Blue & Violet'
                   : t === 'claude'
                   ? 'Warm Terracotta & Stone'

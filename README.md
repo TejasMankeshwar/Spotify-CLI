@@ -50,10 +50,17 @@ spotify
 ```
 
 ```text
-  ✦ Spotify CLI v1.0.0 ─ GEMINI
-  Operate Spotify seamlessly from your terminal. Type /help or /watch.
+  ███████╗██████╗  ██████╗ ████████╗██╗███████╗██╗   ██╗     ██████╗██╗     ██╗
+  ██╔════╝██╔══██╗██╔═══██╗╚══██╔══╝██║██╔════╝╚██╗ ██╔╝    ██╔════╝██║     ██║
+  ███████╗██████╔╝██║   ██║   ██║   ██║█████╗   ╚████╔╝ ─── ██║     ██║     ██║
+  ╚════██║██╔═══╝ ██║   ██║   ██║   ██║██╔══╝    ╚██╔╝      ██║     ██║     ██║
+  ███████║██║     ╚██████╔╝   ██║   ██║██║        ██║       ╚██████╗███████╗██║
+  ╚══════╝╚═╝      ╚═════╝    ╚═╝   ╚═╝╚═╝        ╚═╝        ╚═════╝╚══════╝╚═╝
 
-  ▶ Starboy · The Weeknd, Daft Punk  ━━━━━━━●────── [02:14/03:50]  🔊 80%
+  ✦ SPOTIFY-CLI v1.0.0 ─ macOS Native ─ Theme: GEMINI
+  Operate Spotify seamlessly from terminal. Type /help for commands, /watch for live monitor.
+
+  ▶ Matargashti · Mohit Chauhan  ━━━━━━━━━━●───── [03:39/05:28]  🔊 73%
 
   ✦ spotify ❯ /
 ```
@@ -115,26 +122,32 @@ spotify watch
 
 ## 🎨 Themes
 
-### Gemini CLI Theme (Default)
-Electric Sky (`#38bdf8`), Celestial Blue spark (`✦`), Slate borders, and Emerald badges.
+### Green / Spotify Theme (Default)
+Harmonizes with the title gradient: **Leaf Green** (`#4ade80`), **Bottle Green** borders (`#065f46`), soft pine muted tones (`#52796f`), and **Pure White** text & headings.
 
 ```text
 ╭─ ✦ Spotify Player  [PLAYING] ───────────────────────────────────────╮
-│ Track      Starboy                                                 │
-│ Artist     The Weeknd, Daft Punk                                   │
-│ Album      Starboy                                                 │
-│ Progress   ━━━━━━━━●─────── 02:14 / 03:50                          │
-│ Volume     ■■■■■■□□ 80%                                            │
+│ Track      Matargashti                                             │
+│ Artist     Mohit Chauhan                                           │
+│ Album      Tamasha                                                 │
+│ Progress   ━━━━━━━━━━●───── 03:39 / 05:28                          │
+│ Volume     ■■■■■■□□ 75%                                            │
 │ State      ▶ PLAYING  │  🔀 ON  🔁 OFF                             │
-│ Link       https://open.spotify.com/track/7MXVkk9YM5zg0QbMuXC9Ah   │
+│ Link       https://open.spotify.com/track/5GeBgck1MU2tlIkMpsn8uT   │
 ╰────────────────────────────────────────────────────────────────────╯
+```
+
+### Gemini CLI Theme
+Electric Sky (`#38bdf8`), Celestial Blue spark (`✦`), Slate borders, and Emerald badges.
+
+```bash
+spotify --gemini status
 ```
 
 ### Claude Code Theme
 Terracotta / Amber (`#d97706`), Warm Coral (`#fb923c`), Stone borders, and minimal bullets (`●`).
 
 ```bash
-# Switch theme via flag or inside REPL (/theme claude)
 spotify --claude status
 ```
 

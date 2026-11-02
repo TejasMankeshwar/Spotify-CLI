@@ -20,6 +20,7 @@ import {
 } from './spotify/applescript.ts';
 import { fetchLyrics } from './spotify/lyrics.ts';
 import { renderTrackCard, renderCompactTicker, renderHelpCard } from './ui/card.ts';
+import { renderBanner } from './ui/banner.ts';
 import { createSpinner } from './ui/spinner.ts';
 import { runLiveHUD } from './ui/live-ticker.ts';
 import { startRepl } from './repl.ts';
@@ -42,6 +43,11 @@ async function main() {
         saveConfig({ theme: t });
       }
       args.splice(i, 2);
+      i--;
+    } else if (args[i] === '--green' || args[i] === '--spotify') {
+      setTheme('green');
+      saveConfig({ theme: 'green' });
+      args.splice(i, 1);
       i--;
     } else if (args[i] === '--claude') {
       setTheme('claude');
@@ -74,10 +80,14 @@ async function main() {
       process.stdout.write(`spotify-cli v${VERSION}\n`);
       process.exit(0);
 
+    case 'banner':
+      process.stdout.write('\n' + renderBanner() + '\n\n');
+      process.exit(0);
+
     case '-h':
     case '--help':
     case 'help':
-      process.stdout.write('\n' + renderHelpCard() + '\n\n');
+      process.stdout.write('\n' + renderBanner() + '\n\n' + renderHelpCard() + '\n\n');
       process.exit(0);
 
     case 'now':

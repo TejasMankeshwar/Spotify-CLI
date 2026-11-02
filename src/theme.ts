@@ -1,6 +1,6 @@
-import { hex, bold, dim } from './ui/ansi.ts';
+import { hex, bold } from './ui/ansi.ts';
 
-export type ThemeName = 'gemini' | 'claude' | 'cyber';
+export type ThemeName = 'green' | 'spotify' | 'gemini' | 'claude' | 'cyber';
 
 export interface ThemeColors {
   primary: (text: string) => string;
@@ -14,8 +14,24 @@ export interface ThemeColors {
   heading: (text: string) => string;
   symbol: string;
   promptSymbol: string;
-  name: ThemeName;
+  name: string;
 }
+
+// Default Theme: Leaf Green (#4ade80), Bottle Green (#065f46), Crisp White (#ffffff)
+const greenTheme: ThemeColors = {
+  name: 'green',
+  primary: (t: string) => hex('#4ade80', t),       // Vivid leaf green
+  secondary: (t: string) => hex('#22c55e', t),     // Lush emerald / foliage green
+  accent: (t: string) => hex('#ffffff', t),        // Crisp white spark
+  muted: (t: string) => hex('#52796f', t),         // Soft sage / pine slate
+  playing: (t: string) => hex('#4ade80', t),       // Leaf green
+  paused: (t: string) => hex('#f59e0b', t),        // Amber
+  border: (t: string) => hex('#065f46', t),        // Deep bottle green border
+  text: (t: string) => hex('#f8fafc', t),          // Crisp bright white text
+  heading: (t: string) => bold(hex('#ffffff', t)), // Crisp bold white
+  symbol: '✦',
+  promptSymbol: '❯',
+};
 
 const geminiTheme: ThemeColors = {
   name: 'gemini',
@@ -62,17 +78,20 @@ const cyberTheme: ThemeColors = {
   promptSymbol: '›',
 };
 
-const themes: Record<ThemeName, ThemeColors> = {
+const themes: Record<string, ThemeColors> = {
+  green: greenTheme,
+  spotify: greenTheme,
   gemini: geminiTheme,
   claude: claudeTheme,
   cyber: cyberTheme,
 };
 
-let currentTheme: ThemeColors = geminiTheme;
+let currentTheme: ThemeColors = greenTheme;
 
-export function setTheme(name: ThemeName): ThemeColors {
-  if (themes[name]) {
-    currentTheme = themes[name];
+export function setTheme(name: string): ThemeColors {
+  const normalized = name.toLowerCase().trim();
+  if (themes[normalized]) {
+    currentTheme = themes[normalized];
   }
   return currentTheme;
 }
@@ -81,7 +100,6 @@ export function getTheme(): ThemeColors {
   return currentTheme;
 }
 
-export function listThemes(): ThemeName[] {
-  return Object.keys(themes) as ThemeName[];
+export function listThemes(): string[] {
+  return ['green', 'gemini', 'claude', 'cyber'];
 }
-

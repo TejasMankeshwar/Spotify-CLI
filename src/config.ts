@@ -10,7 +10,7 @@ export interface UserConfig {
 }
 
 const DEFAULT_CONFIG: UserConfig = {
-  theme: 'gemini',
+  theme: 'green',
   volumeStep: 5,
   autoDisplayCardOnPlay: true,
 };
