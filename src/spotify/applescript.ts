@@ -46,26 +46,25 @@ export async function getTrackInfo(): Promise<TrackInfo | null> {
     return null;
   }
 
-  // Single batch AppleScript query for maximum performance and atomic state
+  // Single atomic AppleScript query for maximum performance and reliability
   const script = `
 tell application "Spotify"
-  if not (exists current track) then
+  try
+    set tName to name of current track
+    set tArtist to artist of current track
+    set tAlbum to album of current track
+    set tDuration to duration of current track
+    set tUrl to spotify url of current track
+    set tId to id of current track
+    set pState to player state as string
+    set pPos to player position as integer
+    set pVol to sound volume as integer
+    set pShuf to shuffling as boolean
+    set pRep to repeating as boolean
+    return pState & "${DELIMITER}" & pPos & "${DELIMITER}" & pVol & "${DELIMITER}" & pShuf & "${DELIMITER}" & pRep & "${DELIMITER}" & tName & "${DELIMITER}" & tArtist & "${DELIMITER}" & tAlbum & "${DELIMITER}" & tDuration & "${DELIMITER}" & tUrl & "${DELIMITER}" & tId
+  on error
     return "NO_TRACK"
-  end if
-  set pState to player state as string
-  set pPos to player position as integer
-  set pVol to sound volume as integer
-  set pShuf to shuffling as boolean
-  set pRep to repeating as boolean
-  
-  set tName to name of current track
-  set tArtist to artist of current track
-  set tAlbum to album of current track
-  set tDuration to duration of current track
-  set tUrl to spotify url of current track
-  set tId to id of current track
-  
-  return pState & "${DELIMITER}" & pPos & "${DELIMITER}" & pVol & "${DELIMITER}" & pShuf & "${DELIMITER}" & pRep & "${DELIMITER}" & tName & "${DELIMITER}" & tArtist & "${DELIMITER}" & tAlbum & "${DELIMITER}" & tDuration & "${DELIMITER}" & tUrl & "${DELIMITER}" & tId
+  end try
 end tell
 `;
 
