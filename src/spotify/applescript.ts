@@ -134,16 +134,75 @@ export async function previous(): Promise<void> {
   await runAppleScript('tell application "Spotify" to previous track');
 }
 
+export type VolumeInstruction = { type: 'set'; value: number } | { type: 'adjust'; delta: number };
+
+export function parseVolumeInput(input: string): VolumeInstruction {
+  const trimmed = input.trim().toLowerCase();
+  if (!trimmed) return { type: 'set', value: 50 };
+  if (trimmed === 'mute') return { type: 'set', value: 0 };
+  if (trimmed === 'max') return { type: 'set', value: 100 };
+
+  const tokens = trimmed.split(/\s+/);
+  let totalDelta = 0;
+  let hasDelta = false;
+
+  for (const token of tokens) {
+    if (/^\++$/.test(token)) {
+      totalDelta += token.length * 5;
+      hasDelta = true;
+    } else if (/^-+$/.test(token)) {
+      totalDelta -= token.length * 5;
+      hasDelta = true;
+    } else if (token === 'up') {
+      totalDelta += 5;
+      hasDelta = true;
+    } else if (token === 'down') {
+      totalDelta -= 5;
+      hasDelta = true;
+    } else if (token.startsWith('+') || token.startsWith('-')) {
+      const num = parseInt(token, 10);
+      if (!isNaN(num)) {
+        totalDelta += num;
+        hasDelta = true;
+      }
+    }
+  }
+
+  if (hasDelta) {
+    return { type: 'adjust', delta: totalDelta };
+  }
+
+  const absolute = parseInt(tokens[0], 10);
+  return { type: 'set', value: isNaN(absolute) ? 50 : absolute };
+}
+
+let volumeQueue = Promise.resolve(0);
+
 export async function setVolume(vol: number): Promise<number> {
   const clamped = Math.max(0, Math.min(100, Math.round(vol)));
-  await runAppleScript(`tell application "Spotify" to set sound volume to ${clamped}`);
-  return clamped;
+  volumeQueue = volumeQueue.then(async () => {
+    await runAppleScript(`tell application "Spotify" to set sound volume to ${clamped}`);
+    return clamped;
+  }).catch(() => clamped);
+  return volumeQueue;
 }
 
 export async function adjustVolume(delta: number): Promise<number> {
-  const info = await getTrackInfo();
-  const currentVol = info?.volume ?? 50;
-  return await setVolume(currentVol + delta);
+  const step = Math.round(delta);
+  volumeQueue = volumeQueue.then(async () => {
+    const script = `
+tell application "Spotify"
+  set curVol to sound volume
+  set newVol to curVol + (${step})
+  if newVol > 100 then set newVol to 100
+  if newVol < 0 then set newVol to 0
+  set sound volume to newVol
+  return newVol
+end tell`;
+    const res = await runAppleScript(script);
+    return parseInt(res, 10) || 0;
+  }).catch(() => 0);
+  return volumeQueue;
 }
 
 export async function seek(seconds: number): Promise<void> {

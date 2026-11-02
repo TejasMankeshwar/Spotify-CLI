@@ -11,6 +11,7 @@ import {
   previous,
   setVolume,
   adjustVolume,
+  parseVolumeInput,
   seek,
   setShuffle,
   setRepeat,
@@ -81,7 +82,11 @@ async function main() {
 
     case 'now':
     case 'status':
-    case 'current': {
+    case 'current':
+    case 'track':
+    case 'song':
+    case 'info':
+    case 'np': {
       const spinner = createSpinner('Reading Spotify status...').start();
       const info = await getTrackInfo();
       if (!info) {
@@ -106,10 +111,14 @@ async function main() {
 
     case 'watch':
     case 'live':
+    case 'hud':
       await runLiveHUD();
       process.exit(0);
 
-    case 'play': {
+    case 'play':
+    case 'resume':
+    case 'search':
+    case 'find': {
       if (!rest) {
         const spinner = createSpinner('Resuming playback...').start();
         await play();
@@ -133,7 +142,8 @@ async function main() {
       break;
     }
 
-    case 'pause': {
+    case 'pause':
+    case 'stop': {
       const spinner = createSpinner('Pausing playback...').start();
       await pause();
       spinner.succeed('Playback paused.');
@@ -150,7 +160,9 @@ async function main() {
     }
 
     case 'next':
-    case 'n': {
+    case 'n':
+    case 'skip':
+    case 'forward': {
       const spinner = createSpinner('Skipping to next track...').start();
       await next();
       spinner.succeed('Skipped to next track.');
@@ -166,7 +178,8 @@ async function main() {
 
     case 'prev':
     case 'previous':
-    case 'p': {
+    case 'p':
+    case 'back': {
       const spinner = createSpinner('Skipping to previous track...').start();
       await previous();
       spinner.succeed('Previous track.');
@@ -180,6 +193,25 @@ async function main() {
       break;
     }
 
+    case 'replay':
+    case 'restart': {
+      await seek(0);
+      process.stdout.write(`Replayed track from beginning.\n`);
+      process.exit(0);
+    }
+
+    case 'share':
+    case 'link':
+    case 'url': {
+      const info = await getTrackInfo();
+      if (!info || !info.spotifyUrl) {
+        process.stderr.write('No active track or URL.\n');
+        process.exit(1);
+      }
+      process.stdout.write(`${info.spotifyUrl}\n`);
+      process.exit(0);
+    }
+
     case 'vol':
     case 'volume': {
       if (!rest) {
@@ -187,14 +219,12 @@ async function main() {
         process.stdout.write(`Volume: ${info?.volume ?? 50}%\n`);
         process.exit(0);
       }
-      let newVol: number;
-      if (rest.startsWith('+') || rest.startsWith('-')) {
-        const delta = parseInt(rest, 10);
-        newVol = await adjustVolume(isNaN(delta) ? 5 : delta);
-      } else {
-        const target = parseInt(rest, 10);
-        newVol = await setVolume(isNaN(target) ? 50 : target);
-      }
+      const instruction = parseVolumeInput(rest);
+      const newVol =
+        instruction.type === 'adjust'
+          ? await adjustVolume(instruction.delta)
+          : await setVolume(instruction.value);
+
       process.stdout.write(`Volume set to ${theme.primary(`${newVol}%`)}\n`);
       process.exit(0);
     }

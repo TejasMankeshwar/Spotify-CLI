@@ -9,6 +9,7 @@ import {
   previous,
   setVolume,
   adjustVolume,
+  parseVolumeInput,
   seek,
   setShuffle,
   setRepeat,
@@ -40,6 +41,7 @@ const SLASH_COMMANDS = [
   '/shuffle',
   '/repeat',
   '/lyrics',
+  '/share',
   '/theme',
   '/clear',
   '/help',
@@ -52,12 +54,16 @@ function completer(line: string): [string[], string] {
   return [hits.length ? hits : SLASH_COMMANDS, line];
 }
 
-export async function startRepl(): Promise<void> {
-  const rl = readline.createInterface({
+function createReplInterface(): readline.Interface {
+  return readline.createInterface({
     input: process.stdin,
     output: process.stdout,
     completer,
   });
+}
+
+export async function startRepl(): Promise<void> {
+  let rl: readline.Interface | null = createReplInterface();
 
   const printBanner = async () => {
     const theme = getTheme();
@@ -86,7 +92,7 @@ export async function startRepl(): Promise<void> {
 
     const parts = trimmed.split(/\s+/);
     const cmd = parts[0].toLowerCase();
-    const args = parts.slice(1).join(' ');
+    const args = parts.slice(1).join(' ').trim();
     const theme = getTheme();
 
     switch (cmd) {
@@ -95,11 +101,13 @@ export async function startRepl(): Promise<void> {
       case 'exit':
       case 'quit':
       case ':q':
+      case 'q':
         process.stdout.write(`  ${theme.muted('Goodbye!')}\n\n`);
         return false;
 
       case '/clear':
       case 'clear':
+      case 'cls':
         cursor.clearScreen();
         await printBanner();
         return true;
@@ -107,13 +115,21 @@ export async function startRepl(): Promise<void> {
       case '/help':
       case 'help':
       case '?':
+      case '-h':
+      case '--help':
         process.stdout.write('\n' + renderHelpCard() + '\n\n');
         return true;
 
       case '/now':
       case '/status':
+      case '/current':
       case 'now':
-      case 'status': {
+      case 'status':
+      case 'current':
+      case 'track':
+      case 'song':
+      case 'info':
+      case 'np': {
         const spinner = createSpinner('Fetching playback status...').start();
         const info = await getTrackInfo();
         if (!info) {
@@ -125,17 +141,42 @@ export async function startRepl(): Promise<void> {
         return true;
       }
 
+      case '/ticker':
+      case 'ticker':
+      case 'compact': {
+        const info = await getTrackInfo();
+        if (info) {
+          process.stdout.write(`  ${renderCompactTicker(info)}\n\n`);
+        } else {
+          process.stdout.write(`  ${theme.muted('Spotify is idle.')}\n\n`);
+        }
+        return true;
+      }
+
       case '/watch':
       case '/live':
+      case '/hud':
       case 'watch':
       case 'live':
-        rl.pause();
+      case 'hud': {
+        // Fully close readline so process.stdin is 100% available to raw keypresses
+        if (rl) {
+          rl.close();
+          rl = null;
+        }
+
+        cursor.clearScreen();
         await runLiveHUD();
-        rl.resume();
+
+        // Recreate readline interface cleanly
+        rl = createReplInterface();
+        await printBanner();
         return true;
+      }
 
       case '/play':
-      case 'play': {
+      case 'play':
+      case 'resume': {
         if (!args) {
           const spinner = createSpinner('Resuming playback...').start();
           await play();
@@ -162,8 +203,29 @@ export async function startRepl(): Promise<void> {
         return true;
       }
 
+      case '/search':
+      case 'search':
+      case '/find':
+      case 'find': {
+        if (!args) {
+          process.stdout.write(`  ${theme.muted('Usage: /search <song, artist, or album>')}\n\n`);
+          return true;
+        }
+        const spinner = createSpinner(`Searching and playing "${args}"...`).start();
+        await playSearch(args);
+        spinner.succeed(`Playing: ${theme.primary(args)}`);
+        setTimeout(async () => {
+          const info = await getTrackInfo();
+          if (info) {
+            process.stdout.write('\n' + renderTrackCard(info) + '\n\n');
+          }
+        }, 600);
+        return true;
+      }
+
       case '/pause':
-      case 'pause': {
+      case 'pause':
+      case 'stop': {
         const spinner = createSpinner('Pausing playback...').start();
         await pause();
         spinner.succeed('Playback paused.');
@@ -184,7 +246,9 @@ export async function startRepl(): Promise<void> {
       case '/next':
       case '/n':
       case 'next':
-      case 'n': {
+      case 'n':
+      case 'skip':
+      case 'forward': {
         const spinner = createSpinner('Skipping to next track...').start();
         await next();
         spinner.succeed('Skipped.');
@@ -201,7 +265,9 @@ export async function startRepl(): Promise<void> {
       case '/previous':
       case '/p':
       case 'prev':
-      case 'p': {
+      case 'p':
+      case 'previous':
+      case 'back': {
         const spinner = createSpinner('Going to previous track...').start();
         await previous();
         spinner.succeed('Previous track.');
@@ -214,9 +280,19 @@ export async function startRepl(): Promise<void> {
         return true;
       }
 
+      case '/replay':
+      case 'replay':
+      case 'restart': {
+        await seek(0);
+        process.stdout.write(`  ${theme.playing('✔')} Replayed track from beginning.\n\n`);
+        return true;
+      }
+
       case '/vol':
       case '/volume':
-      case 'vol': {
+      case 'vol':
+      case 'volume':
+      case 'v': {
         if (!args) {
           const info = await getTrackInfo();
           const current = info?.volume ?? 50;
@@ -224,14 +300,12 @@ export async function startRepl(): Promise<void> {
           return true;
         }
 
-        let newVol: number;
-        if (args.startsWith('+') || args.startsWith('-')) {
-          const delta = parseInt(args, 10);
-          newVol = await adjustVolume(isNaN(delta) ? 5 : delta);
-        } else {
-          const target = parseInt(args, 10);
-          newVol = await setVolume(isNaN(target) ? 50 : target);
-        }
+        const instruction = parseVolumeInput(args);
+        const newVol =
+          instruction.type === 'adjust'
+            ? await adjustVolume(instruction.delta)
+            : await setVolume(instruction.value);
+
         process.stdout.write(`  🔊 Volume set to ${theme.primary(`${newVol}%`)}\n\n`);
         return true;
       }
@@ -275,7 +349,8 @@ export async function startRepl(): Promise<void> {
       }
 
       case '/lyrics':
-      case 'lyrics': {
+      case 'lyrics':
+      case 'words': {
         const spinner = createSpinner('Fetching lyrics...').start();
         const info = await getTrackInfo();
         if (!info) {
@@ -303,6 +378,19 @@ export async function startRepl(): Promise<void> {
         return true;
       }
 
+      case '/share':
+      case 'share':
+      case 'link':
+      case 'url': {
+        const info = await getTrackInfo();
+        if (!info || !info.spotifyUrl) {
+          process.stdout.write(`  ${theme.paused('No track playing or link available.')}\n\n`);
+        } else {
+          process.stdout.write(`  🔗 Link: ${theme.primary(info.spotifyUrl)}\n\n`);
+        }
+        return true;
+      }
+
       case '/theme':
       case 'theme': {
         const validThemes = listThemes();
@@ -315,16 +403,24 @@ export async function startRepl(): Promise<void> {
             `  ${theme.playing('✔')} Switched theme to ${bold(targetTheme.toUpperCase())}\n\n`
           );
         } else {
-          rl.pause();
+          if (rl) {
+            rl.close();
+            rl = null;
+          }
           const chosen = await promptSelect(
             'Select UI Theme:',
             validThemes.map((t) => ({
               title: t.toUpperCase(),
-              subtitle: t === 'gemini' ? 'Celestial Blue & Violet' : t === 'claude' ? 'Warm Terracotta & Stone' : 'Neon Cyberpunk',
+              subtitle:
+                t === 'gemini'
+                  ? 'Celestial Blue & Violet'
+                  : t === 'claude'
+                  ? 'Warm Terracotta & Stone'
+                  : 'Neon Cyberpunk',
               value: t,
             }))
           );
-          rl.resume();
+          rl = createReplInterface();
           if (chosen) {
             setTheme(chosen);
             saveConfig({ theme: chosen });
@@ -337,22 +433,8 @@ export async function startRepl(): Promise<void> {
       }
 
       default: {
-        // Natural shorthand: if user types "bohemian rhapsody" or "hotel california", treat as search & play!
-        if (!trimmed.startsWith('/')) {
-          const spinner = createSpinner(`Searching and playing "${trimmed}"...`).start();
-          await playSearch(trimmed);
-          spinner.succeed(`Playing: ${theme.primary(trimmed)}`);
-          setTimeout(async () => {
-            const info = await getTrackInfo();
-            if (info) {
-              process.stdout.write('\n' + renderTrackCard(info) + '\n\n');
-            }
-          }, 600);
-          return true;
-        }
-
         process.stdout.write(
-          `  ${theme.paused('Unknown command:')} ${theme.text(trimmed)}. Type ${theme.primary('/help')} for available commands.\n\n`
+          `  ${theme.paused('Unknown command:')} ${theme.text(trimmed)}. Did you mean ${theme.primary('/play ' + trimmed)}? Type ${theme.primary('/help')} for commands.\n\n`
         );
         return true;
       }
@@ -360,6 +442,9 @@ export async function startRepl(): Promise<void> {
   };
 
   while (true) {
+    if (!rl) {
+      rl = createReplInterface();
+    }
     const theme = getTheme();
     const promptStr = `  ${theme.primary(theme.symbol)} ${theme.secondary('spotify')} ${theme.muted(theme.promptSymbol)} `;
     try {
@@ -375,6 +460,7 @@ export async function startRepl(): Promise<void> {
     }
   }
 
-  rl.close();
+  if (rl) {
+    rl.close();
+  }
 }
-

@@ -4,6 +4,7 @@ import { setTheme, getTheme } from '../src/theme.ts';
 import { renderTrackCard, renderCompactTicker } from '../src/ui/card.ts';
 import { renderProgressBar, renderVolumeBar } from '../src/ui/progress.ts';
 import { stripAnsi } from '../src/ui/ansi.ts';
+import { parseVolumeInput } from '../src/spotify/applescript.ts';
 import type { TrackInfo } from '../src/spotify/types.ts';
 
 const mockTrack: TrackInfo = {
@@ -69,5 +70,29 @@ test('Compact ticker format matches CLI aesthetics', () => {
   assert.ok(raw.includes('Queen'));
   assert.ok(raw.includes('[02:22/05:54]'));
   assert.ok(raw.includes('75%'));
+});
+
+test('parseVolumeInput handles multiple and various volume patterns', () => {
+  // Single delta
+  assert.deepEqual(parseVolumeInput('+10'), { type: 'adjust', delta: 10 });
+  assert.deepEqual(parseVolumeInput('-15'), { type: 'adjust', delta: -15 });
+
+  // Multiple deltas
+  assert.deepEqual(parseVolumeInput('+5 +5 +5'), { type: 'adjust', delta: 15 });
+  assert.deepEqual(parseVolumeInput('+10 -5'), { type: 'adjust', delta: 5 });
+
+  // Repeated signs
+  assert.deepEqual(parseVolumeInput('++'), { type: 'adjust', delta: 10 });
+  assert.deepEqual(parseVolumeInput('+++'), { type: 'adjust', delta: 15 });
+  assert.deepEqual(parseVolumeInput('--'), { type: 'adjust', delta: -10 });
+
+  // Word commands
+  assert.deepEqual(parseVolumeInput('up up'), { type: 'adjust', delta: 10 });
+  assert.deepEqual(parseVolumeInput('down'), { type: 'adjust', delta: -5 });
+  assert.deepEqual(parseVolumeInput('mute'), { type: 'set', value: 0 });
+  assert.deepEqual(parseVolumeInput('max'), { type: 'set', value: 100 });
+
+  // Direct absolute target
+  assert.deepEqual(parseVolumeInput('85'), { type: 'set', value: 85 });
 });
 

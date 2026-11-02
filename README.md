@@ -69,7 +69,7 @@ spotify
 | `/prev`, `/p` | Return to previous track |
 | `/now`, `/status` | Render detailed track card |
 | `/watch`, `/live` | Launch real-time dynamic player HUD |
-| `/vol [0-100\|+10\|-10]` | Set or adjust volume |
+| `/vol [0-100|+10|-10|++|--|mute]` | Set or adjust volume (supports `++`, `--`, `up`, `mute`, `max`) |
 | `/seek <sec\|mm:ss>` | Jump to position in current song |
 | `/shuffle` | Toggle shuffle mode on/off |
 | `/repeat` | Toggle repeat mode on/off |
