@@ -1,0 +1,26 @@
+{
+  "name": "spotify-cli",
+  "version": "1.0.0",
+  "description": "Minimalist, aesthetic Spotify CLI inspired by Gemini-CLI and Claude Code",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "spotify": "./bin/spotify.js"
+  },
+  "scripts": {
+    "start": "node src/index.ts",
+    "watch": "node src/index.ts watch",
+    "status": "node src/index.ts status",
+    "test": "node --test"
+  },
+  "keywords": [
+    "spotify",
+    "cli",
+    "gemini-cli",
+    "claude-code",
+    "terminal",
+    "music-player"
+  ],
+  "author": "Tejas Mankeshwar",
+  "license": "MIT"
+}

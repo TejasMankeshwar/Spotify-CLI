@@ -1,0 +1,73 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { setTheme, getTheme } from '../src/theme.ts';
+import { renderTrackCard, renderCompactTicker } from '../src/ui/card.ts';
+import { renderProgressBar, renderVolumeBar } from '../src/ui/progress.ts';
+import { stripAnsi } from '../src/ui/ansi.ts';
+import type { TrackInfo } from '../src/spotify/types.ts';
+
+const mockTrack: TrackInfo = {
+  id: 'spotify:track:4cOdK2wGLETKBW3PvgPWqT',
+  name: 'Bohemian Rhapsody - Remastered 2011',
+  artist: 'Queen',
+  album: 'A Night At The Opera (Deluxe Edition)',
+  durationMs: 354000,
+  durationFormatted: '05:54',
+  positionSec: 142,
+  positionFormatted: '02:22',
+  progressPercent: 40.1,
+  volume: 75,
+  state: 'playing',
+  isRepeating: false,
+  isShuffling: true,
+  spotifyUrl: 'https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT',
+};
+
+test('Progress bar renders correct width and components', () => {
+  const bar = renderProgressBar({ currentSec: 50, totalSec: 100, width: 20 });
+  const raw = stripAnsi(bar);
+  assert.equal(raw.length, 20);
+  assert.ok(raw.includes('●'));
+});
+
+test('Volume bar renders percentage and visual segments', () => {
+  const volBar = renderVolumeBar(80, 10);
+  const raw = stripAnsi(volBar);
+  assert.ok(raw.includes('80%'));
+  assert.ok(raw.includes('■'));
+});
+
+test('Track card renders accurately in Gemini theme', () => {
+  setTheme('gemini');
+  const card = renderTrackCard(mockTrack);
+  const raw = stripAnsi(card);
+
+  assert.ok(raw.includes('Spotify Player'));
+  assert.ok(raw.includes('PLAYING'));
+  assert.ok(raw.includes('Bohemian Rhapsody'));
+  assert.ok(raw.includes('Queen'));
+  assert.ok(raw.includes('02:22 / 05:54'));
+  assert.ok(raw.includes('75%'));
+  assert.ok(raw.includes('ON')); // Shuffle is ON
+  assert.ok(raw.includes('OFF')); // Repeat is OFF
+});
+
+test('Track card renders accurately in Claude theme', () => {
+  setTheme('claude');
+  const card = renderTrackCard(mockTrack);
+  const raw = stripAnsi(card);
+
+  assert.ok(raw.includes('Spotify Player'));
+  assert.ok(raw.includes('PLAYING'));
+  assert.ok(raw.includes('Bohemian Rhapsody'));
+});
+
+test('Compact ticker format matches CLI aesthetics', () => {
+  const ticker = renderCompactTicker(mockTrack);
+  const raw = stripAnsi(ticker);
+  assert.ok(raw.includes('Bohemian Rhapsody'));
+  assert.ok(raw.includes('Queen'));
+  assert.ok(raw.includes('[02:22/05:54]'));
+  assert.ok(raw.includes('75%'));
+});
+
