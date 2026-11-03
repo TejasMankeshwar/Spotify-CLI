@@ -413,13 +413,13 @@ export async function startRepl(): Promise<void> {
             validThemes.map((t) => ({
               title: t.toUpperCase(),
               subtitle:
-                t === 'green'
+                t === 'spotify'
                   ? 'Leaf Green, Bottle Green & Pure White (Default)'
-                  : t === 'gemini'
-                  ? 'Celestial Blue & Violet'
-                  : t === 'claude'
+                  : t === 'celestial'
+                  ? 'Electric Sky & Indigo Spark'
+                  : t === 'amber'
                   ? 'Warm Terracotta & Stone'
-                  : 'Neon Cyberpunk',
+                  : 'Neon Cyan & Pink Cyberpunk',
               value: t,
             }))
           );

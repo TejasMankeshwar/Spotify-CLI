@@ -14,7 +14,7 @@ Rather than hijacking your entire terminal with an outdated full-screen TUI (lik
 - **Dynamic Live Player HUD (`/watch`)**: Real-time non-flickering interactive playback monitor with live-ticking progress bar and single-key controls (Space to toggle, `n`/`p` to skip, `+`/`-` volume, `q` to return).
 - **Synced & Plain Lyrics**: Instant inline lyrics fetching via LRCLIB directly into your terminal.
 - **Zero-Latency macOS Integration**: Operates local macOS Spotify client with sub-millisecond response and zero complex OAuth setup required.
-- **Multiple Color Themes**: Switch dynamically between **Gemini** (Electric Sky & Indigo), **Claude** (Warm Terracotta & Stone), and **Cyber** (Neon Cyan & Purple).
+- **Multiple Color Themes**: Switch dynamically between **Spotify** (Leaf & Bottle Green with Pure White), **Celestial** (Electric Sky & Indigo), **Amber** (Warm Terracotta & Stone), and **Cyber** (Neon Cyan & Pink).
 - **Zero External Dependencies**: Pure Node.js & native TypeScript with instant 0ms startup time.
 
 ---
@@ -57,7 +57,7 @@ spotify
   ███████║██║     ╚██████╔╝   ██║   ██║██║        ██║       ╚██████╗███████╗██║
   ╚══════╝╚═╝      ╚═════╝    ╚═╝   ╚═╝╚═╝        ╚═╝        ╚═════╝╚══════╝╚═╝
 
-  ✦ SPOTIFY-CLI v1.0.0 ─ macOS Native ─ Theme: GEMINI
+  ✦ SPOTIFY-CLI v1.0.0 ─ macOS Native ─ Theme: SPOTIFY
   Operate Spotify seamlessly from terminal. Type /help for commands, /watch for live monitor.
 
   ▶ Matargashti · Mohit Chauhan  ━━━━━━━━━━●───── [03:39/05:28]  🔊 73%
@@ -81,7 +81,7 @@ spotify
 | `/shuffle` | Toggle shuffle mode on/off |
 | `/repeat` | Toggle repeat mode on/off |
 | `/lyrics` | Fetch & stream synced/plain lyrics |
-| `/theme [gemini\|claude]` | Switch active aesthetic theme |
+| `/theme [spotify\|celestial\|amber\|cyber]` | Switch active aesthetic theme |
 | `/clear` | Clear screen and redraw banner |
 | `/exit`, `/quit` | Exit Spotify CLI |
 
@@ -122,7 +122,7 @@ spotify watch
 
 ## 🎨 Themes
 
-### Green / Spotify Theme (Default)
+### Spotify Theme (Default)
 Harmonizes with the title gradient: **Leaf Green** (`#4ade80`), **Bottle Green** borders (`#065f46`), soft pine muted tones (`#52796f`), and **Pure White** text & headings.
 
 ```text
@@ -137,18 +137,25 @@ Harmonizes with the title gradient: **Leaf Green** (`#4ade80`), **Bottle Green**
 ╰────────────────────────────────────────────────────────────────────╯
 ```
 
-### Gemini CLI Theme
+### Celestial Theme
 Electric Sky (`#38bdf8`), Celestial Blue spark (`✦`), Slate borders, and Emerald badges.
 
 ```bash
-spotify --gemini status
+spotify --celestial status
 ```
 
-### Claude Code Theme
+### Amber Theme
 Terracotta / Amber (`#d97706`), Warm Coral (`#fb923c`), Stone borders, and minimal bullets (`●`).
 
 ```bash
-spotify --claude status
+spotify --amber status
+```
+
+### Cyber Theme
+Electric Cyan (`#06b6d4`), Neon Pink (`#ec4899`), Neon Purple accents, and diamond glyphs (`◆`).
+
+```bash
+spotify --cyber status
 ```
 
 ---

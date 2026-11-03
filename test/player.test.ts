@@ -39,8 +39,8 @@ test('Volume bar renders percentage and visual segments', () => {
   assert.ok(raw.includes('■'));
 });
 
-test('Track card renders accurately in Green theme (default)', () => {
-  setTheme('green');
+test('Track card renders accurately in Spotify theme (default)', () => {
+  setTheme('spotify');
   const card = renderTrackCard(mockTrack);
   const raw = stripAnsi(card);
 
@@ -48,11 +48,11 @@ test('Track card renders accurately in Green theme (default)', () => {
   assert.ok(raw.includes('PLAYING'));
   assert.ok(raw.includes('Bohemian Rhapsody'));
   assert.ok(raw.includes('Queen'));
-  assert.equal(getTheme().name, 'green');
+  assert.equal(getTheme().name, 'spotify');
 });
 
-test('Track card renders accurately in Gemini theme', () => {
-  setTheme('gemini');
+test('Track card renders accurately in Celestial theme', () => {
+  setTheme('celestial');
   const card = renderTrackCard(mockTrack);
   const raw = stripAnsi(card);
 
@@ -66,8 +66,8 @@ test('Track card renders accurately in Gemini theme', () => {
   assert.ok(raw.includes('OFF')); // Repeat is OFF
 });
 
-test('Track card renders accurately in Claude theme', () => {
-  setTheme('claude');
+test('Track card renders accurately in Amber theme', () => {
+  setTheme('amber');
   const card = renderTrackCard(mockTrack);
   const raw = stripAnsi(card);
 

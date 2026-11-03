@@ -1,6 +1,6 @@
 import { hex, bold } from './ui/ansi.ts';
 
-export type ThemeName = 'green' | 'spotify' | 'gemini' | 'claude' | 'cyber';
+export type ThemeName = 'spotify' | 'celestial' | 'amber' | 'cyber';
 
 export interface ThemeColors {
   primary: (text: string) => string;
@@ -17,9 +17,9 @@ export interface ThemeColors {
   name: string;
 }
 
-// Default Theme: Leaf Green (#4ade80), Bottle Green (#065f46), Crisp White (#ffffff)
-const greenTheme: ThemeColors = {
-  name: 'green',
+// Default Theme: Spotify Leaf Green (#4ade80), Deep Bottle Green (#065f46), Crisp White (#ffffff)
+const spotifyTheme: ThemeColors = {
+  name: 'spotify',
   primary: (t: string) => hex('#4ade80', t),       // Vivid leaf green
   secondary: (t: string) => hex('#22c55e', t),     // Lush emerald / foliage green
   accent: (t: string) => hex('#ffffff', t),        // Crisp white spark
@@ -33,8 +33,9 @@ const greenTheme: ThemeColors = {
   promptSymbol: '❯',
 };
 
-const geminiTheme: ThemeColors = {
-  name: 'gemini',
+// Celestial Theme: Electric Sky & Indigo
+const celestialTheme: ThemeColors = {
+  name: 'celestial',
   primary: (t: string) => hex('#38bdf8', t),       // Sky/cyan
   secondary: (t: string) => hex('#818cf8', t),     // Indigo
   accent: (t: string) => hex('#60a5fa', t),        // Blue spark
@@ -48,8 +49,9 @@ const geminiTheme: ThemeColors = {
   promptSymbol: '❯',
 };
 
-const claudeTheme: ThemeColors = {
-  name: 'claude',
+// Amber Theme: Warm Terracotta & Stone
+const amberTheme: ThemeColors = {
+  name: 'amber',
   primary: (t: string) => hex('#d97706', t),       // Warm amber/terracotta
   secondary: (t: string) => hex('#ea580c', t),     // Rust/burnt orange
   accent: (t: string) => hex('#fb923c', t),        // Soft orange
@@ -63,6 +65,7 @@ const claudeTheme: ThemeColors = {
   promptSymbol: '❯',
 };
 
+// Cyber Theme: Neon Cyan & Purple
 const cyberTheme: ThemeColors = {
   name: 'cyber',
   primary: (t: string) => hex('#06b6d4', t),       // Electric cyan
@@ -79,14 +82,19 @@ const cyberTheme: ThemeColors = {
 };
 
 const themes: Record<string, ThemeColors> = {
-  green: greenTheme,
-  spotify: greenTheme,
-  gemini: geminiTheme,
-  claude: claudeTheme,
+  spotify: spotifyTheme,
+  green: spotifyTheme,
+  celestial: celestialTheme,
+  azure: celestialTheme,
+  gemini: celestialTheme,
+  amber: amberTheme,
+  terracotta: amberTheme,
+  claude: amberTheme,
   cyber: cyberTheme,
+  neon: cyberTheme,
 };
 
-let currentTheme: ThemeColors = greenTheme;
+let currentTheme: ThemeColors = spotifyTheme;
 
 export function setTheme(name: string): ThemeColors {
   const normalized = name.toLowerCase().trim();
@@ -101,5 +109,5 @@ export function getTheme(): ThemeColors {
 }
 
 export function listThemes(): string[] {
-  return ['green', 'gemini', 'claude', 'cyber'];
+  return ['spotify', 'celestial', 'amber', 'cyber'];
 }

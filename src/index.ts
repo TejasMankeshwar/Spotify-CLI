@@ -30,33 +30,36 @@ const VERSION = '1.0.0';
 
 async function main() {
   const config = loadConfig();
-  setTheme(config.theme || 'gemini');
+  setTheme(config.theme || 'spotify');
 
   const args = process.argv.slice(2);
 
   // Parse global flags
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--theme' && args[i + 1]) {
-      const t = args[i + 1].toLowerCase() as ThemeName;
-      if (listThemes().includes(t)) {
-        setTheme(t);
-        saveConfig({ theme: t });
-      }
+      const t = args[i + 1].toLowerCase();
+      setTheme(t);
+      saveConfig({ theme: (getTheme().name as ThemeName) });
       args.splice(i, 2);
       i--;
-    } else if (args[i] === '--green' || args[i] === '--spotify') {
-      setTheme('green');
-      saveConfig({ theme: 'green' });
+    } else if (args[i] === '--spotify' || args[i] === '--green') {
+      setTheme('spotify');
+      saveConfig({ theme: 'spotify' });
       args.splice(i, 1);
       i--;
-    } else if (args[i] === '--claude') {
-      setTheme('claude');
-      saveConfig({ theme: 'claude' });
+    } else if (args[i] === '--celestial' || args[i] === '--azure') {
+      setTheme('celestial');
+      saveConfig({ theme: 'celestial' });
       args.splice(i, 1);
       i--;
-    } else if (args[i] === '--gemini') {
-      setTheme('gemini');
-      saveConfig({ theme: 'gemini' });
+    } else if (args[i] === '--amber' || args[i] === '--terracotta') {
+      setTheme('amber');
+      saveConfig({ theme: 'amber' });
+      args.splice(i, 1);
+      i--;
+    } else if (args[i] === '--cyber') {
+      setTheme('cyber');
+      saveConfig({ theme: 'cyber' });
       args.splice(i, 1);
       i--;
     }

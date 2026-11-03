@@ -124,7 +124,7 @@ export function renderHelpCard(): string {
     { label: '/shuffle', value: 'Toggle shuffle mode (on/off)' },
     { label: '/repeat', value: 'Toggle repeat mode (on/off)' },
     { label: '/lyrics', value: 'Fetch synced/plain lyrics for current song' },
-    { label: '/theme [gemini|claude]', value: 'Switch between Gemini and Claude themes' },
+    { label: '/theme [name]', value: 'Switch theme (spotify, celestial, amber, cyber)' },
     { label: '/clear', value: 'Clear terminal screen' },
     { label: '/help', value: 'Show this cheat sheet' },
     { label: '/exit, /quit', value: 'Exit Spotify CLI' },
