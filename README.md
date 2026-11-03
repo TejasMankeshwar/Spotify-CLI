@@ -1,6 +1,6 @@
 # ✦ Spotify-CLI
 
-A minimalist, aesthetic Spotify CLI built strictly around the modern terminal design language of **Gemini-CLI** and **Claude Code**.
+A minimalist, aesthetic Spotify CLI built strictly around the modern terminal design language.
 
 Rather than hijacking your entire terminal with an outdated full-screen TUI (like `spotify-tui` or `cmus`), **Spotify-CLI** preserves the native feel of your terminal shell: scrolling stdout, subtle typographic dividers, sleek inline cards, braille spinners, interactive arrow-key selectors, and a dynamic real-time playback HUD.
 
@@ -8,7 +8,7 @@ Rather than hijacking your entire terminal with an outdated full-screen TUI (lik
 
 ## ✨ Features
 
-- **Gemini-CLI & Claude Code Aesthetics**: Designed with truecolor ANSI gradients, thin curved unicode frames (`╭─`, `╰─`, `│`), spark glyphs (`✦`, `●`), and subtle muted secondary text.
+- **Good Aesthetics**: Designed with truecolor ANSI gradients, thin curved unicode frames (`╭─`, `╰─`, `│`), spark glyphs (`✦`, `●`), and subtle muted secondary text.
 - **Interactive REPL & Slash Commands**: Fast, autocompleting interactive shell with command history and slash commands (`/play`, `/pause`, `/next`, `/vol`, `/lyrics`, `/watch`, `/theme`).
 - **Single-Shot CLI Mode**: Instant commands for terminal power-users, shell scripts, and tmux status bars (`spotify play "Starboy"`, `spotify pause`, `spotify vol +10`, `spotify ticker`).
 - **Dynamic Live Player HUD (`/watch`)**: Real-time non-flickering interactive playback monitor with live-ticking progress bar and single-key controls (Space to toggle, `n`/`p` to skip, `+`/`-` volume, `q` to return).
