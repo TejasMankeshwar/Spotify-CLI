@@ -154,7 +154,11 @@ tell application "Spotify"
     set sound volume to v
     delay 0.02
   end repeat
-  set sound volume to targetVol
+  if (targetVol mod 20) is not 0 and targetVol < 100 and targetVol > 0 then
+    set sound volume to (targetVol + 1)
+  else
+    set sound volume to targetVol
+  end if
 end tell`;
           await runAppleScript(script);
         } else {
@@ -190,7 +194,11 @@ tell application "Spotify"
     end repeat
   end if
   pause
-  set sound volume to targetVol
+  if (targetVol mod 20) is not 0 and targetVol < 100 and targetVol > 0 then
+    set sound volume to (targetVol + 1)
+  else
+    set sound volume to targetVol
+  end if
 end tell`;
           await runAppleScript(script);
         }

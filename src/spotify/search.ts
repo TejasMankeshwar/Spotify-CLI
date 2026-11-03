@@ -140,12 +140,13 @@ async function searchDeezerApi(query: string, limit = 8): Promise<SearchResultIt
 }
 
 // 3. Free Open iTunes Catalog Search (Zero credentials, high quality previews)
-async function searchItunesApi(query: string, limit = 8): Promise<SearchResultItem[]> {
+async function searchItunesApi(query: string, limit = 8, country?: string): Promise<SearchResultItem[]> {
   try {
     const params = new URLSearchParams({
       term: query,
       entity: 'song',
       limit: limit.toString(),
+      ...(country ? { country } : {}),
     });
 
     const res = await fetch(`https://itunes.apple.com/search?${params.toString()}`, {
@@ -225,6 +226,29 @@ async function resolveViaGenius(query: string): Promise<string | null> {
   }
 }
 
+async function getTrackUriFromAlbum(albumId: string): Promise<string> {
+  try {
+    const res = await fetch(`https://open.spotify.com/embed/album/${albumId}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      },
+      signal: AbortSignal.timeout(3000),
+    });
+    if (res.ok) {
+      const text = await res.text();
+      const match = text.match(/<script id="__NEXT_DATA__"[^>]*>([^<]+)<\/script>/);
+      if (match) {
+        const d = JSON.parse(match[1]);
+        const trackUri = d.props?.pageProps?.state?.data?.entity?.trackList?.[0]?.uri;
+        if (trackUri && trackUri.startsWith('spotify:track:')) {
+          return trackUri;
+        }
+      }
+    }
+  } catch {}
+  return `spotify:album:${albumId}`;
+}
+
 // Universal Spotify Track URI Resolver (Fast cache + Genius + MusicBrainz/ISRC + Spotify API)
 export async function resolveSpotifyUri(title: string, artist = '', isrc?: string): Promise<string | null> {
   const normTitle = title.toLowerCase().trim();
@@ -266,32 +290,46 @@ export async function resolveSpotifyUri(title: string, artist = '', isrc?: strin
     }
   } catch {}
 
-  // 3. Try MusicBrainz by ISRC (100% free open catalog)
+  // 4. Try MusicBrainz by ISRC (100% free open catalog with release album/track discovery)
   if (isrc) {
     try {
-      const mbRes = await fetch(`https://musicbrainz.org/ws/2/isrc/${encodeURIComponent(isrc)}?fmt=json`, {
+      const mbRes = await fetch(`https://musicbrainz.org/ws/2/recording?query=isrc:${encodeURIComponent(isrc)}&limit=3&fmt=json`, {
         headers: { 'User-Agent': 'SpotifyTerminalCLI/1.0.0 (https://github.com/developer/spotify-cli)' },
-        signal: AbortSignal.timeout(3000),
+        signal: AbortSignal.timeout(3500),
       });
       if (mbRes.ok) {
         const mbData: any = await mbRes.json();
-        const recId = mbData.recordings?.[0]?.id;
-        if (recId) {
-          const relRes = await fetch(`https://musicbrainz.org/ws/2/recording/${recId}?inc=url-rels&fmt=json`, {
-            headers: { 'User-Agent': 'SpotifyTerminalCLI/1.0.0 (https://github.com/developer/spotify-cli)' },
-            signal: AbortSignal.timeout(3000),
-          });
-          if (relRes.ok) {
-            const relData: any = await relRes.json();
-            const spUrl = relData.relations?.find((r: any) => r.url?.resource?.includes('spotify.com/track/'))?.url?.resource;
-            if (spUrl) {
-              const match = spUrl.match(/spotify\.com\/track\/([a-zA-Z0-9]+)/);
-              if (match) {
-                const uri = `spotify:track:${match[1]}`;
-                saveTrackCacheItem(normTitle, uri);
-                saveTrackCacheItem(normFull, uri);
-                saveTrackCacheItem(isrc.toLowerCase(), uri);
-                return uri;
+        const recordings = mbData.recordings || [];
+        for (const rec of recordings) {
+          if (rec.releases) {
+            for (const rel of rec.releases) {
+              if (rel.id) {
+                const relRes = await fetch(`https://musicbrainz.org/ws/2/release/${rel.id}?inc=url-rels&fmt=json`, {
+                  headers: { 'User-Agent': 'SpotifyTerminalCLI/1.0.0 (https://github.com/developer/spotify-cli)' },
+                  signal: AbortSignal.timeout(3500),
+                });
+                if (relRes.ok) {
+                  const relData: any = await relRes.json();
+                  for (const r of (relData.relations || [])) {
+                    const u = r.url?.resource || '';
+                    const tm = u.match(/spotify\.com\/track\/([a-zA-Z0-9]+)/);
+                    if (tm) {
+                      const uri = `spotify:track:${tm[1]}`;
+                      saveTrackCacheItem(normTitle, uri);
+                      saveTrackCacheItem(normFull, uri);
+                      saveTrackCacheItem(isrc.toLowerCase(), uri);
+                      return uri;
+                    }
+                    const am = u.match(/spotify\.com\/album\/([a-zA-Z0-9]+)/);
+                    if (am) {
+                      const uri = await getTrackUriFromAlbum(am[1]);
+                      saveTrackCacheItem(normTitle, uri);
+                      saveTrackCacheItem(normFull, uri);
+                      saveTrackCacheItem(isrc.toLowerCase(), uri);
+                      return uri;
+                    }
+                  }
+                }
               }
             }
           }
@@ -300,31 +338,44 @@ export async function resolveSpotifyUri(title: string, artist = '', isrc?: strin
     } catch {}
   }
 
-  // 4. Try MusicBrainz recording query by title & artist
+  // 5. Try MusicBrainz recording query by title & artist
   try {
-    const mbQ = `recording:${title} AND artist:${artist}`;
-    const mbRes = await fetch(`https://musicbrainz.org/ws/2/recording?query=${encodeURIComponent(mbQ)}&limit=1&fmt=json`, {
+    const mbQ = artist ? `recording:${title} AND artist:${artist}` : `recording:${title}`;
+    const mbRes = await fetch(`https://musicbrainz.org/ws/2/recording?query=${encodeURIComponent(mbQ)}&limit=3&fmt=json`, {
       headers: { 'User-Agent': 'SpotifyTerminalCLI/1.0.0 (https://github.com/developer/spotify-cli)' },
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(3500),
     });
     if (mbRes.ok) {
       const mbData: any = await mbRes.json();
-      const recId = mbData.recordings?.[0]?.id;
-      if (recId) {
-        const relRes = await fetch(`https://musicbrainz.org/ws/2/recording/${recId}?inc=url-rels&fmt=json`, {
-          headers: { 'User-Agent': 'SpotifyTerminalCLI/1.0.0 (https://github.com/developer/spotify-cli)' },
-          signal: AbortSignal.timeout(3000),
-        });
-        if (relRes.ok) {
-          const relData: any = await relRes.json();
-          const spUrl = relData.relations?.find((r: any) => r.url?.resource?.includes('spotify.com/track/'))?.url?.resource;
-          if (spUrl) {
-            const match = spUrl.match(/spotify\.com\/track\/([a-zA-Z0-9]+)/);
-            if (match) {
-              const uri = `spotify:track:${match[1]}`;
-              saveTrackCacheItem(normTitle, uri);
-              saveTrackCacheItem(normFull, uri);
-              return uri;
+      const recordings = mbData.recordings || [];
+      for (const rec of recordings) {
+        if (rec.releases) {
+          for (const rel of rec.releases) {
+            if (rel.id) {
+              const relRes = await fetch(`https://musicbrainz.org/ws/2/release/${rel.id}?inc=url-rels&fmt=json`, {
+                headers: { 'User-Agent': 'SpotifyTerminalCLI/1.0.0 (https://github.com/developer/spotify-cli)' },
+                signal: AbortSignal.timeout(3500),
+              });
+              if (relRes.ok) {
+                const relData: any = await relRes.json();
+                for (const r of (relData.relations || [])) {
+                  const u = r.url?.resource || '';
+                  const tm = u.match(/spotify\.com\/track\/([a-zA-Z0-9]+)/);
+                  if (tm) {
+                    const uri = `spotify:track:${tm[1]}`;
+                    saveTrackCacheItem(normTitle, uri);
+                    saveTrackCacheItem(normFull, uri);
+                    return uri;
+                  }
+                  const am = u.match(/spotify\.com\/album\/([a-zA-Z0-9]+)/);
+                  if (am) {
+                    const uri = await getTrackUriFromAlbum(am[1]);
+                    saveTrackCacheItem(normTitle, uri);
+                    saveTrackCacheItem(normFull, uri);
+                    return uri;
+                  }
+                }
+              }
             }
           }
         }
@@ -345,9 +396,24 @@ export async function searchTracks(query: string, limit = 8): Promise<SearchResu
   // 2. Query Deezer API (fast, open, includes preview audio + ISRC)
   let results = await searchDeezerApi(query, limit);
 
-  // 3. Fallback to iTunes API if Deezer returned nothing
-  if (results.length === 0) {
-    results = await searchItunesApi(query, limit);
+  // Check if Deezer results are relevant (contains at least one query keyword)
+  const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  const deezerMatchesQuery = results.length > 0 && queryWords.some(w =>
+    results[0].name.toLowerCase().includes(w) || results[0].artist.toLowerCase().includes(w)
+  );
+
+  // 3. Fallback to iTunes API if Deezer returned nothing or had poor relevance
+  if (results.length === 0 || !deezerMatchesQuery) {
+    const itunesResults = await searchItunesApi(query, limit);
+    if (itunesResults.length > 0) {
+      results = itunesResults;
+    } else {
+      // Try regional iTunes (e.g. India catalog for regional/Bollywood hits)
+      const regionalResults = await searchItunesApi(query, limit, 'IN');
+      if (regionalResults.length > 0) {
+        results = regionalResults;
+      }
+    }
   }
 
   if (results.length === 0) {

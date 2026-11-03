@@ -208,12 +208,12 @@ export async function startRepl(): Promise<void> {
             if (res.hasDirectUri) {
               spinner.succeed(`Playing: ${theme.primary(res.trackName)}`);
             } else {
-              spinner.succeed(`Searching in Spotify: ${theme.primary(res.trackName)}`);
+              spinner.warn(`Could not resolve playable track for: ${theme.primary(res.trackName)}. Try: /search ${args}`);
             }
           }
           await new Promise((r) => setTimeout(r, 450));
           const info = await getTrackInfo();
-          if (info) {
+          if (info && info.state === 'playing') {
             process.stdout.write('\n' + renderTrackCard(info) + '\n\n');
           }
         }
@@ -248,12 +248,12 @@ export async function startRepl(): Promise<void> {
             if (res.hasDirectUri) {
               spinner.succeed(`Playing: ${theme.primary(res.trackName)}`);
             } else {
-              spinner.succeed(`Searching in Spotify: ${theme.primary(selected.name)}`);
+              spinner.warn(`Could not resolve playable track for: ${theme.primary(selected.name)}`);
             }
           }
           await new Promise((r) => setTimeout(r, 450));
           const info = await getTrackInfo();
-          if (info) {
+          if (info && info.state === 'playing') {
             process.stdout.write('\n' + renderTrackCard(info) + '\n\n');
           }
         }

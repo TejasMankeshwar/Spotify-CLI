@@ -25,6 +25,12 @@ const CACHE_FILE = path.join(CONFIG_DIR, 'track_cache.json');
 const INITIAL_TRACK_CACHE: Record<string, string> = {
   'no brainer': 'spotify:track:5WvAo7DNuPRmk4APhdPzi8',
   'no brainer dj khaled': 'spotify:track:5WvAo7DNuPRmk4APhdPzi8',
+  'tauba tauba': 'spotify:track:1WaqQIJ0iENGWZ1QmYvYNK',
+  'tauba tauba karan aujla': 'spotify:track:1WaqQIJ0iENGWZ1QmYvYNK',
+  'do din ka mela': 'spotify:track:4Ongy8kfa8yZ6LCGqcV2WG',
+  'do din ka ye mela': 'spotify:track:2lt1LGayyl1TFTJYgslVyz',
+  'do din ka ye mela rahul ram': 'spotify:track:2lt1LGayyl1TFTJYgslVyz',
+  'do din ka mela gulabo sitabo': 'spotify:track:2lt1LGayyl1TFTJYgslVyz',
   'kabira': 'spotify:track:4bD9z9qa4qg9BhryvYWB7c',
   'kabira encore': 'spotify:track:6C7AqDxRmBxKLoeJ4HxdHU',
   'shape of you': 'spotify:track:0FE9t6xYkqWXU2ahLh6D8X',
@@ -33,6 +39,8 @@ const INITIAL_TRACK_CACHE: Record<string, string> = {
   'kesariya': 'spotify:track:4UMIv5jd9gK98a39BQRD9X',
   'blinding lights': 'spotify:track:0sf12qNH5qcw8qpgymFOqD',
   'believer': 'spotify:track:0pqTrk04U0m9uVj5Kx4YwV',
+  'espresso': 'spotify:track:2HRqTpkrFuEMivW9tf4hk2',
+  'espresso sabrina carpenter': 'spotify:track:2HRqTpkrFuEMivW9tf4hk2',
 };
 
 export function loadTrackCache(): Record<string, string> {

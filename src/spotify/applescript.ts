@@ -127,7 +127,11 @@ tell application "Spotify"
         set sound volume to v
         delay 0.012
       end repeat
-      set sound volume to curVol
+      if (curVol mod 20) is not 0 and curVol < 100 and curVol > 0 then
+        set sound volume to (curVol + 1)
+      else
+        set sound volume to curVol
+      end if
     else
       play
     end if
@@ -149,7 +153,11 @@ tell application "Spotify"
         delay 0.01
       end repeat
       pause
-      set sound volume to curVol
+      if (curVol mod 20) is not 0 and curVol < 100 and curVol > 0 then
+        set sound volume to (curVol + 1)
+      else
+        set sound volume to curVol
+      end if
     else
       pause
     end if
@@ -204,7 +212,11 @@ tell application "Spotify"
         set sound volume to v
         delay 0.012
       end repeat
-      set sound volume to curVol
+      if (curVol mod 20) is not 0 and curVol < 100 and curVol > 0 then
+        set sound volume to (curVol + 1)
+      else
+        set sound volume to curVol
+      end if
     else
       next track
     end if
@@ -230,7 +242,11 @@ tell application "Spotify"
         set sound volume to v
         delay 0.012
       end repeat
-      set sound volume to curVol
+      if (curVol mod 20) is not 0 and curVol < 100 and curVol > 0 then
+        set sound volume to (curVol + 1)
+      else
+        set sound volume to curVol
+      end if
     else
       previous track
     end if
@@ -288,8 +304,27 @@ let volumeQueue = Promise.resolve(0);
 export async function setVolume(vol: number): Promise<number> {
   const clamped = Math.max(0, Math.min(100, Math.round(vol)));
   volumeQueue = volumeQueue.then(async () => {
-    await runAppleScript(`tell application "Spotify" to set sound volume to ${clamped}`);
-    return clamped;
+    const script = `
+tell application "Spotify"
+  set targetVol to ${clamped}
+  if targetVol <= 0 then
+    set sound volume to 0
+    return 0
+  else if targetVol >= 100 then
+    set sound volume to 100
+    return 100
+  end if
+  if (targetVol mod 20) is not 0 then
+    set setVal to targetVol + 1
+    if setVal > 100 then set setVal to 100
+    set sound volume to setVal
+  else
+    set sound volume to targetVol
+  end if
+  return sound volume
+end tell`;
+    const res = await runAppleScript(script);
+    return parseInt(res, 10) || clamped;
   }).catch(() => clamped);
   return volumeQueue;
 }
@@ -300,11 +335,24 @@ export async function adjustVolume(delta: number): Promise<number> {
     const script = `
 tell application "Spotify"
   set curVol to sound volume
-  set newVol to curVol + (${step})
-  if newVol > 100 then set newVol to 100
-  if newVol < 0 then set newVol to 0
-  set sound volume to newVol
-  return newVol
+  set targetVol to curVol + (${step})
+  if targetVol > 100 then set targetVol to 100
+  if targetVol < 0 then set targetVol to 0
+  if targetVol <= 0 then
+    set sound volume to 0
+    return 0
+  else if targetVol >= 100 then
+    set sound volume to 100
+    return 100
+  end if
+  if (targetVol mod 20) is not 0 then
+    set setVal to targetVol + 1
+    if setVal > 100 then set setVal to 100
+    set sound volume to setVal
+  else
+    set sound volume to targetVol
+  end if
+  return sound volume
 end tell`;
     const res = await runAppleScript(script);
     return parseInt(res, 10) || 0;
@@ -375,7 +423,11 @@ tell application "Spotify"
       set sound volume to v
       delay 0.015
     end repeat
-    set sound volume to curVol
+    if (curVol mod 20) is not 0 and curVol < 100 and curVol > 0 then
+      set sound volume to (curVol + 1)
+    else
+      set sound volume to curVol
+    end if
   else
     play track "${cleanUri}"
     try
@@ -405,7 +457,7 @@ export interface PlaySearchResult {
 export async function playSearch(query: string): Promise<PlaySearchResult> {
   const cleanQuery = query.trim();
 
-  // 1. Try fast direct resolution (cache + Genius + Spotify API)
+  // 1. Try fast direct resolution (cache + Genius + MusicBrainz + Spotify API)
   try {
     const directUri = await resolveSpotifyUri(cleanQuery);
     if (directUri) {
@@ -420,31 +472,26 @@ export async function playSearch(query: string): Promise<PlaySearchResult> {
 
   // 2. Structured catalog search (Deezer/iTunes -> Spotify URI)
   try {
-    const results = await searchTracks(cleanQuery, 1);
+    const results = await searchTracks(cleanQuery, 3);
     if (results.length > 0) {
-      let targetUri = results[0].uri;
-      if (!targetUri) {
-        targetUri = (await resolveSpotifyUri(results[0].name, results[0].artist, results[0].isrc)) || '';
-      }
-      if (targetUri) {
-        await playUri(targetUri, true);
-        return {
-          success: true,
-          trackName: `${results[0].name} by ${results[0].artist}`,
-          hasDirectUri: true,
-        };
+      for (const item of results) {
+        let targetUri = item.uri;
+        if (!targetUri) {
+          targetUri = (await resolveSpotifyUri(item.name, item.artist, item.isrc)) || '';
+        }
+        if (targetUri) {
+          await playUri(targetUri, true);
+          return {
+            success: true,
+            trackName: `${item.name} by ${item.artist}`,
+            hasDirectUri: true,
+          };
+        }
       }
     }
   } catch {}
 
-  // 3. Fallback to Spotify URI search in background with URL-encoded query so spaces are preserved
-  const encodedQuery = encodeURIComponent(cleanQuery);
-  const fallbackScript = `
-tell application "Spotify" to play track "spotify:search:${encodedQuery}"
-try
-  tell application "System Events" to set visible of process "Spotify" to false
-end try`;
-  await runAppleScript(fallbackScript);
+  // 3. Fallback: if no direct URI found yet, return false so REPL can notify user cleanly
   return {
     success: false,
     trackName: cleanQuery,
