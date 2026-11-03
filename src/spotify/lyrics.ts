@@ -147,6 +147,50 @@ async function tryNetEase(track: string, artist: string): Promise<LyricsResult |
   }
 }
 
+function extractGeniusContainers(html: string): string[] {
+  const searchStr = 'data-lyrics-container="true"';
+  const results: string[] = [];
+  let pos = 0;
+
+  while (true) {
+    const startIdx = html.indexOf(searchStr, pos);
+    if (startIdx === -1) break;
+
+    const openCloseIdx = html.indexOf('>', startIdx);
+    if (openCloseIdx === -1) break;
+
+    let depth = 1;
+    let i = openCloseIdx + 1;
+    const contentStart = openCloseIdx + 1;
+
+    while (i < html.length && depth > 0) {
+      if (html.slice(i, i + 4).toLowerCase() === '<div') {
+        depth++;
+        i += 4;
+      } else if (html.slice(i, i + 6).toLowerCase() === '</div>') {
+        depth--;
+        if (depth === 0) {
+          results.push(html.slice(contentStart, i));
+          pos = i + 6;
+          break;
+        }
+        i += 6;
+      } else {
+        i++;
+      }
+    }
+    if (depth > 0) break;
+  }
+
+  // Fallback for older Genius layout
+  if (results.length === 0) {
+    const oldMatch = html.match(/class="lyrics"[^>]*>([\s\S]*?)<\/div>/);
+    if (oldMatch) results.push(oldMatch[1]);
+  }
+
+  return results;
+}
+
 // 3. Genius (World's largest lyrics catalog: Bollywood, Indian, indie, regional, international)
 async function tryGenius(track: string, artist: string): Promise<LyricsResult | null> {
   try {
@@ -168,45 +212,51 @@ async function tryGenius(track: string, artist: string): Promise<LyricsResult | 
     if (!pageRes.ok) return null;
     const html = await pageRes.text();
 
-    let matches = [...html.matchAll(/data-lyrics-container="true"[^>]*>([\s\S]*?)<\/div>/g)];
-    if (matches.length === 0) {
-      const oldMatch = html.match(/class="lyrics"[^>]*>([\s\S]*?)<\/div>/);
-      if (oldMatch) matches = [oldMatch as any];
-    }
-    if (matches.length === 0) return null;
+    const containers = extractGeniusContainers(html);
+    if (containers.length === 0) return null;
 
-    const raw = matches
-      .map((m) => m[1])
-      .join('\n')
-      .replace(/<br\s*\/?>/gi, '\n')
-      .replace(/<[^>]+>/g, '')
-      .replace(/&#x27;/g, '\x27')
-      .replace(/&#39;/g, '\x27')
-      .replace(/&quot;/g, '"')
-      .replace(/&amp;/g, '&')
-      .replace(/&nbsp;/g, ' ');
+    const allLines: LyricLine[] = [];
 
-    const lines = raw
-      .split('\n')
-      .map((l) =>
-        l
+    for (const c of containers) {
+      const clean = c
+        .replace(/<div data-exclude-from-selection="true"[\s\S]*?<\/div>/gi, '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&#x27;/g, '\x27')
+        .replace(/&#39;/g, '\x27')
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, '&')
+        .replace(/&nbsp;/g, ' ');
+
+      const rawLines = clean.split('\n');
+      for (const rawLine of rawLines) {
+        const line = rawLine
           .replace(/^\s*\d+\s+Contributors.*$/i, '')
           .replace(/\d+Embed$/i, '')
-          .trim()
-      )
-      .filter((l) => l.length > 0);
+          .replace(/^.*?Lyrics\s*(?=\[|$)/i, '')
+          .trim();
 
-    if (lines.length === 0) return null;
+        if (
+          line.length > 0 &&
+          !line.includes('ContributorsTranslations') &&
+          !line.toLowerCase().endsWith('lyrics')
+        ) {
+          allLines.push({
+            timeSec: 0,
+            timeFormatted: '--:--',
+            text: line,
+          });
+        }
+      }
+    }
+
+    if (allLines.length === 0) return null;
 
     return {
       trackName: songHit.title || track,
       artistName: songHit.primary_artist?.name || artist,
       synced: false,
-      lines: lines.map((line) => ({
-        timeSec: 0,
-        timeFormatted: '--:--',
-        text: line,
-      })),
+      lines: allLines,
     };
   } catch {
     return null;
