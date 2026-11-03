@@ -69,7 +69,8 @@ spotify
 
 | Command | Description |
 | :--- | :--- |
-| `/play [query]` | Resume playback or search & play instantly |
+| `/play [query]` | Resume playback or search & play top track immediately |
+| `/search <query>` | Interactive suggestions picker: **Hold Space to Preview**, **Enter to Play** |
 | `/pause` | Pause active playback |
 | `/toggle` or `<space>` | Toggle play/pause |
 | `/next`, `/n` | Skip to next track |
@@ -81,9 +82,21 @@ spotify
 | `/shuffle` | Toggle shuffle mode on/off |
 | `/repeat` | Toggle repeat mode on/off |
 | `/lyrics` | Fetch & stream synced/plain lyrics |
+| `/auth`, `/config` | Configure free Spotify Developer credentials |
 | `/theme [spotify\|celestial\|amber\|cyber]` | Switch active aesthetic theme |
 | `/clear` | Clear screen and redraw banner |
 | `/exit`, `/quit` | Exit Spotify CLI |
+
+---
+
+## 🎧 Interactive Search & Audio Preview
+
+When you search for music (`search kabira` or `spotify search "Kabira"`):
+- **Current music keeps playing**: Your ongoing Spotify playback is not interrupted.
+- **Top suggestions list**: Navigate suggestions with `↑` / `↓` arrow keys.
+- **Hold Space to Preview**: Press and hold `Space` to stream a 30-second studio audio preview. Release `Space` to stop preview immediately!
+- **Enter to Play**: Press `Enter` to commit and play the full song in Spotify!
+- **Esc / q**: Cancel search and return without modifying playback.
 
 ---
 
@@ -92,8 +105,11 @@ spotify
 Every command can also be run directly from your shell:
 
 ```bash
-# Search and play a track
-spotify play "Bohemian Rhapsody"
+# Search and play top track immediately
+spotify play "Kabira"
+
+# Interactive search with audio preview (hold Space to preview, Enter to play)
+spotify search "Kabira"
 
 # Toggle play/pause
 spotify toggle

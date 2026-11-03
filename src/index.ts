@@ -23,6 +23,8 @@ import { renderTrackCard, renderCompactTicker, renderHelpCard } from './ui/card.
 import { renderBanner } from './ui/banner.ts';
 import { createSpinner } from './ui/spinner.ts';
 import { runLiveHUD } from './ui/live-ticker.ts';
+import { runSearchPicker } from './ui/search-picker.ts';
+import { getSpotifyApiToken } from './spotify/search.ts';
 import { startRepl } from './repl.ts';
 import { bold, dim } from './ui/ansi.ts';
 
@@ -128,22 +130,58 @@ async function main() {
       await runLiveHUD();
       process.exit(0);
 
-    case 'play':
-    case 'resume':
     case 'search':
     case 'find': {
+      if (!rest) {
+        process.stdout.write(`Usage: spotify search <song title, artist, or album>\n`);
+        process.exit(1);
+      }
+      const selected = await runSearchPicker(rest);
+      if (selected) {
+        const spinner = createSpinner(`Playing "${selected.name}"...`).start();
+        if (selected.uri) {
+          await playUri(selected.uri);
+          spinner.succeed(`Playing: ${theme.primary(selected.name)} by ${theme.secondary(selected.artist)}`);
+        } else {
+          const res = await playSearch(`${selected.name} ${selected.artist}`);
+          if (res.hasDirectUri) {
+            spinner.succeed(`Playing: ${theme.primary(res.trackName)}`);
+          } else {
+            spinner.succeed(`Searching in Spotify: ${theme.primary(selected.name)}`);
+          }
+        }
+        setTimeout(async () => {
+          const info = await getTrackInfo();
+          if (info) {
+            process.stdout.write('\n' + renderTrackCard(info) + '\n\n');
+          }
+          process.exit(0);
+        }, 600);
+      } else {
+        process.exit(0);
+      }
+      break;
+    }
+
+    case 'play':
+    case 'resume': {
       if (!rest) {
         const spinner = createSpinner('Resuming playback...').start();
         await play();
         spinner.succeed('Playback resumed.');
       } else {
-        const spinner = createSpinner(`Playing "${rest}"...`).start();
+        const spinner = createSpinner(`Searching and playing "${rest}"...`).start();
         if (rest.startsWith('spotify:')) {
           await playUri(rest);
+          spinner.succeed(`Playing: ${theme.primary(rest)}`);
         } else {
-          await playSearch(rest);
+          const res = await playSearch(rest);
+          if (res.hasDirectUri) {
+            spinner.succeed(`Playing: ${theme.primary(res.trackName)}`);
+          } else {
+            spinner.succeed(`Searching in Spotify: ${theme.primary(res.trackName)}`);
+          }
         }
-        spinner.succeed(`Playing: ${theme.primary(rest)}`);
       }
       setTimeout(async () => {
         const info = await getTrackInfo();
@@ -151,8 +189,35 @@ async function main() {
           process.stdout.write('\n' + renderTrackCard(info) + '\n\n');
         }
         process.exit(0);
-      }, 500);
+      }, 600);
       break;
+    }
+
+    case 'auth':
+    case 'config': {
+      // Allow passing --client-id and --client-secret
+      const cIdIndex = args.indexOf('--client-id');
+      const cSecIndex = args.indexOf('--client-secret');
+      const updates: any = {};
+      if (cIdIndex !== -1 && args[cIdIndex + 1]) {
+        updates.spotifyClientId = args[cIdIndex + 1];
+      }
+      if (cSecIndex !== -1 && args[cSecIndex + 1]) {
+        updates.spotifyClientSecret = args[cSecIndex + 1];
+      }
+      if (Object.keys(updates).length > 0) {
+        saveConfig(updates);
+        const token = await getSpotifyApiToken();
+        if (token) {
+          process.stdout.write(`${theme.playing('✔')} Spotify Developer API credentials configured successfully!\n`);
+        } else {
+          process.stdout.write(`${theme.paused('⚠')} Credentials saved, but token test failed. Please verify keys.\n`);
+        }
+      } else {
+        process.stdout.write(`Usage: spotify config --client-id <ID> --client-secret <SECRET>\n`);
+        process.stdout.write(`Get free credentials at: https://developer.spotify.com/dashboard (Zero cost, no credit card)\n`);
+      }
+      process.exit(0);
     }
 
     case 'pause':

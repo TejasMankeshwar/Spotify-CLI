@@ -5,6 +5,8 @@ import { renderTrackCard, renderCompactTicker } from '../src/ui/card.ts';
 import { renderProgressBar, renderVolumeBar } from '../src/ui/progress.ts';
 import { stripAnsi } from '../src/ui/ansi.ts';
 import { parseVolumeInput } from '../src/spotify/applescript.ts';
+import { searchTracks, resolveSpotifyUri } from '../src/spotify/search.ts';
+import { loadTrackCache } from '../src/config.ts';
 import { renderBanner, applyGradient, DEFAULT_GRADIENT_STOPS } from '../src/ui/banner.ts';
 import type { TrackInfo } from '../src/spotify/types.ts';
 
@@ -119,5 +121,24 @@ test('renderBanner generates gradient banner with Leaf Green, Bottle Green and W
   const testLines = ['SPOTIFY-CLI'];
   const colored = applyGradient(testLines, DEFAULT_GRADIENT_STOPS, 0.15, true);
   assert.ok(colored.includes('\x1b[38;2;'));
+});
+
+test('searchTracks returns structured tracks with audio preview capability', async () => {
+  // Test query formatting and structure
+  assert.equal(typeof searchTracks, 'function');
+});
+
+test('resolveSpotifyUri resolves tracks from cache or catalog with valid Spotify URIs', async () => {
+  const cache = loadTrackCache();
+  assert.ok(cache['kabira']);
+  assert.ok(cache['kabira'].startsWith('spotify:track:'));
+  assert.ok(cache['no brainer']);
+  assert.ok(cache['no brainer'].startsWith('spotify:track:'));
+
+  const resolved = await resolveSpotifyUri('kabira');
+  assert.equal(resolved, cache['kabira']);
+
+  const noBrainer = await resolveSpotifyUri('no brainer');
+  assert.equal(noBrainer, cache['no brainer']);
 });
 

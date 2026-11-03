@@ -19,10 +19,12 @@ import {
   isSpotifyRunning,
 } from './spotify/applescript.ts';
 import { fetchLyrics } from './spotify/lyrics.ts';
+import { getSpotifyApiToken } from './spotify/search.ts';
 import { renderTrackCard, renderCompactTicker, renderHelpCard } from './ui/card.ts';
 import { renderBanner } from './ui/banner.ts';
 import { createSpinner } from './ui/spinner.ts';
 import { runLiveHUD } from './ui/live-ticker.ts';
+import { runSearchPicker } from './ui/search-picker.ts';
 import { promptSelect } from './ui/selector.ts';
 import { bold, dim, cursor } from './ui/ansi.ts';
 import { saveConfig } from './config.ts';
@@ -42,7 +44,10 @@ const SLASH_COMMANDS = [
   '/shuffle',
   '/repeat',
   '/lyrics',
+  '/search',
   '/share',
+  '/auth',
+  '/config',
   '/theme',
   '/clear',
   '/help',
@@ -56,6 +61,13 @@ function completer(line: string): [string[], string] {
 }
 
 function createReplInterface(): readline.Interface {
+  if (process.stdin.isTTY) {
+    try {
+      process.stdin.setRawMode(false);
+    } catch {}
+  }
+  process.stdin.resume();
+  cursor.show();
   return readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -190,16 +202,20 @@ export async function startRepl(): Promise<void> {
           const spinner = createSpinner(`Searching and playing "${args}"...`).start();
           if (args.startsWith('spotify:')) {
             await playUri(args);
+            spinner.succeed(`Playing: ${theme.primary(args)}`);
           } else {
-            await playSearch(args);
-          }
-          spinner.succeed(`Playing: ${theme.primary(args)}`);
-          setTimeout(async () => {
-            const info = await getTrackInfo();
-            if (info) {
-              process.stdout.write('\n' + renderTrackCard(info) + '\n\n');
+            const res = await playSearch(args);
+            if (res.hasDirectUri) {
+              spinner.succeed(`Playing: ${theme.primary(res.trackName)}`);
+            } else {
+              spinner.succeed(`Searching in Spotify: ${theme.primary(res.trackName)}`);
             }
-          }, 600);
+          }
+          await new Promise((r) => setTimeout(r, 450));
+          const info = await getTrackInfo();
+          if (info) {
+            process.stdout.write('\n' + renderTrackCard(info) + '\n\n');
+          }
         }
         return true;
       }
@@ -212,15 +228,35 @@ export async function startRepl(): Promise<void> {
           process.stdout.write(`  ${theme.muted('Usage: /search <song, artist, or album>')}\n\n`);
           return true;
         }
-        const spinner = createSpinner(`Searching and playing "${args}"...`).start();
-        await playSearch(args);
-        spinner.succeed(`Playing: ${theme.primary(args)}`);
-        setTimeout(async () => {
+
+        // Close readline interface so search picker has full control of stdin
+        if (rl) {
+          rl.close();
+          rl = null;
+        }
+
+        const selected = await runSearchPicker(args);
+        rl = createReplInterface();
+
+        if (selected) {
+          const spinner = createSpinner(`Playing "${selected.name}"...`).start();
+          if (selected.uri) {
+            await playUri(selected.uri);
+            spinner.succeed(`Playing: ${theme.primary(selected.name)} by ${theme.secondary(selected.artist)}`);
+          } else {
+            const res = await playSearch(`${selected.name} ${selected.artist}`);
+            if (res.hasDirectUri) {
+              spinner.succeed(`Playing: ${theme.primary(res.trackName)}`);
+            } else {
+              spinner.succeed(`Searching in Spotify: ${theme.primary(selected.name)}`);
+            }
+          }
+          await new Promise((r) => setTimeout(r, 450));
           const info = await getTrackInfo();
           if (info) {
             process.stdout.write('\n' + renderTrackCard(info) + '\n\n');
           }
-        }, 600);
+        }
         return true;
       }
 
@@ -253,12 +289,11 @@ export async function startRepl(): Promise<void> {
         const spinner = createSpinner('Skipping to next track...').start();
         await next();
         spinner.succeed('Skipped.');
-        setTimeout(async () => {
-          const info = await getTrackInfo();
-          if (info) {
-            process.stdout.write(`  ${renderCompactTicker(info)}\n\n`);
-          }
-        }, 350);
+        await new Promise((r) => setTimeout(r, 350));
+        const info = await getTrackInfo();
+        if (info) {
+          process.stdout.write(`  ${renderCompactTicker(info)}\n\n`);
+        }
         return true;
       }
 
@@ -272,12 +307,11 @@ export async function startRepl(): Promise<void> {
         const spinner = createSpinner('Going to previous track...').start();
         await previous();
         spinner.succeed('Previous track.');
-        setTimeout(async () => {
-          const info = await getTrackInfo();
-          if (info) {
-            process.stdout.write(`  ${renderCompactTicker(info)}\n\n`);
-          }
-        }, 350);
+        await new Promise((r) => setTimeout(r, 350));
+        const info = await getTrackInfo();
+        if (info) {
+          process.stdout.write(`  ${renderCompactTicker(info)}\n\n`);
+        }
         return true;
       }
 
@@ -392,6 +426,35 @@ export async function startRepl(): Promise<void> {
         return true;
       }
 
+      case '/auth':
+      case '/config':
+      case 'auth':
+      case 'config': {
+        process.stdout.write(`\n  ${theme.primary(theme.symbol)} ${bold(theme.heading('Spotify API Configuration (100% Free)'))}\n`);
+        process.stdout.write(`  ${theme.muted('Spotify Developer credentials allow direct catalog search & instant playback.')}\n`);
+        process.stdout.write(`  ${theme.muted('Get yours free in 1 min at:')} ${theme.primary('https://developer.spotify.com/dashboard')} ${theme.muted('(Zero cost, no credit card)')}\n\n`);
+
+        const clientId = await rl.question(`  Client ID (leave blank to keep current): `);
+        const clientSecret = await rl.question(`  Client Secret (leave blank to keep current): `);
+
+        const updates: any = {};
+        if (clientId.trim()) updates.spotifyClientId = clientId.trim();
+        if (clientSecret.trim()) updates.spotifyClientSecret = clientSecret.trim();
+
+        if (Object.keys(updates).length > 0) {
+          saveConfig(updates);
+          const token = await getSpotifyApiToken();
+          if (token) {
+            process.stdout.write(`  ${theme.playing('✔')} Connected to Spotify Web API successfully!\n\n`);
+          } else {
+            process.stdout.write(`  ${theme.paused('⚠')} Keys saved, but could not verify token. Please re-check keys.\n\n`);
+          }
+        } else {
+          process.stdout.write(`  ${theme.muted('No changes made.')}\n\n`);
+        }
+        return true;
+      }
+
       case '/theme':
       case 'theme': {
         const validThemes = listThemes();
@@ -449,6 +512,7 @@ export async function startRepl(): Promise<void> {
       rl = createReplInterface();
     }
     const theme = getTheme();
+    cursor.show();
     const promptStr = `  ${theme.primary(theme.symbol)} ${theme.secondary('spotify')} ${theme.muted(theme.promptSymbol)} `;
     try {
       const answer = await rl.question(promptStr);
