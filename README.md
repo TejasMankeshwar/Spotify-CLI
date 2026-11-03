@@ -176,16 +176,6 @@ spotify --cyber status
 
 ---
 
-## 🧪 Testing
-
-Run the test suite:
-
-```bash
-npm test
-```
-
----
-
 ## 📄 License
 
 MIT © [Tejas Mankeshwar](https://github.com/TejasMankeshwar)
