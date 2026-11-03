@@ -4,7 +4,7 @@ import { setTheme, getTheme } from '../src/theme.ts';
 import { renderTrackCard, renderCompactTicker } from '../src/ui/card.ts';
 import { renderProgressBar, renderVolumeBar } from '../src/ui/progress.ts';
 import { stripAnsi } from '../src/ui/ansi.ts';
-import { parseVolumeInput } from '../src/spotify/applescript.ts';
+import { parseVolumeInput, parseSeekInput } from '../src/spotify/applescript.ts';
 import { searchTracks, resolveSpotifyUri } from '../src/spotify/search.ts';
 import { loadTrackCache } from '../src/config.ts';
 import { renderBanner, applyGradient, DEFAULT_GRADIENT_STOPS } from '../src/ui/banner.ts';
@@ -109,6 +109,33 @@ test('parseVolumeInput handles multiple and various volume patterns', () => {
 
   // Direct absolute target
   assert.deepEqual(parseVolumeInput('85'), { type: 'set', value: 85 });
+});
+
+test('parseSeekInput supports relative forward (+30, +1:30) and rewind (-30, -1:30) as well as absolute timestamps', () => {
+  // Relative forward by seconds
+  assert.deepEqual(parseSeekInput('+30'), { type: 'relative', delta: 30, raw: '+30' });
+  assert.deepEqual(parseSeekInput('+90'), { type: 'relative', delta: 90, raw: '+90' });
+  assert.deepEqual(parseSeekInput('+30s'), { type: 'relative', delta: 30, raw: '+30s' });
+
+  // Relative forward by mm:ss (1:30 -> 90s)
+  assert.deepEqual(parseSeekInput('+1:30'), { type: 'relative', delta: 90, raw: '+1:30' });
+  assert.deepEqual(parseSeekInput('+01:30'), { type: 'relative', delta: 90, raw: '+01:30' });
+  assert.deepEqual(parseSeekInput('+2:15'), { type: 'relative', delta: 135, raw: '+2:15' });
+  assert.deepEqual(parseSeekInput('+1m30s'), { type: 'relative', delta: 90, raw: '+1m30s' });
+  assert.deepEqual(parseSeekInput('forward 30'), { type: 'relative', delta: 30, raw: 'forward 30' });
+  assert.deepEqual(parseSeekInput('forward 1:30'), { type: 'relative', delta: 90, raw: 'forward 1:30' });
+
+  // Relative backward / rewind
+  assert.deepEqual(parseSeekInput('-30'), { type: 'relative', delta: -30, raw: '-30' });
+  assert.deepEqual(parseSeekInput('-1:30'), { type: 'relative', delta: -90, raw: '-1:30' });
+  assert.deepEqual(parseSeekInput('back 30'), { type: 'relative', delta: -30, raw: 'back 30' });
+  assert.deepEqual(parseSeekInput('rewind 1:30'), { type: 'relative', delta: -90, raw: 'rewind 1:30' });
+
+  // Absolute timestamps
+  assert.deepEqual(parseSeekInput('0'), { type: 'absolute', target: 0, raw: '0' });
+  assert.deepEqual(parseSeekInput('45'), { type: 'absolute', target: 45, raw: '45' });
+  assert.deepEqual(parseSeekInput('1:30'), { type: 'absolute', target: 90, raw: '1:30' });
+  assert.deepEqual(parseSeekInput('02:15'), { type: 'absolute', target: 135, raw: '02:15' });
 });
 
 test('renderBanner generates gradient banner with Leaf Green, Bottle Green and White', () => {

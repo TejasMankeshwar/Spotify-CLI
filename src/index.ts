@@ -13,6 +13,9 @@ import {
   adjustVolume,
   parseVolumeInput,
   seek,
+  seekRelative,
+  parseSeekInput,
+  formatTime,
   setShuffle,
   setRepeat,
   playSearch,
@@ -308,15 +311,21 @@ async function main() {
     }
 
     case 'seek': {
-      let sec = 0;
-      if (rest.includes(':')) {
-        const [m, s] = rest.split(':');
-        sec = (parseInt(m, 10) || 0) * 60 + (parseInt(s, 10) || 0);
-      } else {
-        sec = parseInt(rest, 10) || 0;
+      if (!rest) {
+        process.stdout.write(`Usage: spotify seek <+sec|-sec|+mm:ss|-mm:ss> (e.g. +30, +1:30, 02:00)\n`);
+        process.exit(1);
       }
-      await seek(sec);
-      process.stdout.write(`Seeked to ${theme.text(rest)}\n`);
+      const instruction = parseSeekInput(rest);
+      if (instruction.type === 'relative') {
+        const res = await seekRelative(instruction.delta);
+        const signStr = instruction.delta >= 0 ? `+${formatTime(instruction.delta)}` : `-${formatTime(Math.abs(instruction.delta))}`;
+        const durSuffix = res.durationSec > 0 ? ` / ${res.durationFormatted}` : '';
+        process.stdout.write(`Seeked ${theme.primary(signStr)} → ${theme.text(res.positionFormatted)}${theme.muted(durSuffix)}\n`);
+      } else {
+        const res = await seek(instruction.target);
+        const durSuffix = res.durationSec > 0 ? ` / ${res.durationFormatted}` : '';
+        process.stdout.write(`Jumped to ${theme.text(res.positionFormatted)}${theme.muted(durSuffix)}\n`);
+      }
       process.exit(0);
     }
 

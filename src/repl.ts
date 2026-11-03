@@ -11,6 +11,9 @@ import {
   adjustVolume,
   parseVolumeInput,
   seek,
+  seekRelative,
+  parseSeekInput,
+  formatTime,
   setShuffle,
   setRepeat,
   playSearch,
@@ -348,18 +351,25 @@ export async function startRepl(): Promise<void> {
       case '/seek':
       case 'seek': {
         if (!args) {
-          process.stdout.write(`  ${theme.muted('Usage: /seek <seconds> or /seek <mm:ss>')}\n\n`);
+          process.stdout.write(`  ${theme.muted('Usage: /seek <+sec|-sec|+mm:ss|-mm:ss> (e.g. /seek +30, /seek +1:30, /seek 02:00)')}\n\n`);
           return true;
         }
-        let sec = 0;
-        if (args.includes(':')) {
-          const [m, s] = args.split(':');
-          sec = (parseInt(m, 10) || 0) * 60 + (parseInt(s, 10) || 0);
+
+        const instruction = parseSeekInput(args);
+        if (instruction.type === 'relative') {
+          const res = await seekRelative(instruction.delta);
+          const signStr = instruction.delta >= 0 ? `+${formatTime(instruction.delta)}` : `-${formatTime(Math.abs(instruction.delta))}`;
+          const durSuffix = res.durationSec > 0 ? ` / ${res.durationFormatted}` : '';
+          process.stdout.write(
+            `  ${theme.primary(theme.symbol)} Seeked ${theme.primary(signStr)} → ${theme.text(res.positionFormatted)}${theme.muted(durSuffix)}\n\n`
+          );
         } else {
-          sec = parseInt(args, 10) || 0;
+          const res = await seek(instruction.target);
+          const durSuffix = res.durationSec > 0 ? ` / ${res.durationFormatted}` : '';
+          process.stdout.write(
+            `  ${theme.primary(theme.symbol)} Jumped to ${theme.text(res.positionFormatted)}${theme.muted(durSuffix)}\n\n`
+          );
         }
-        await seek(sec);
-        process.stdout.write(`  ${theme.primary(theme.symbol)} Jumped to ${theme.text(args)}\n\n`);
         return true;
       }
 

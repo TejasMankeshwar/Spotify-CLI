@@ -78,7 +78,7 @@ spotify
 | `/now`, `/status` | Render detailed track card |
 | `/watch`, `/live` | Launch real-time dynamic player HUD |
 | `/vol [0-100|+10|-10|++|--|mute]` | Set or adjust volume (supports `++`, `--`, `up`, `mute`, `max`) |
-| `/seek <sec\|mm:ss>` | Jump to position in current song |
+| `/seek <+sec|-sec|+mm:ss|mm:ss>` | Jump to timestamp or push forward/rewind (`+30`, `+1:30`, `02:00`) |
 | `/shuffle` | Toggle shuffle mode on/off |
 | `/repeat` | Toggle repeat mode on/off |
 | `/lyrics` | Fetch & stream synced/plain lyrics |

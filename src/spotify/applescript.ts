@@ -360,9 +360,138 @@ end tell`;
   return volumeQueue;
 }
 
-export async function seek(seconds: number): Promise<void> {
+export type SeekInstruction =
+  | { type: 'relative'; delta: number; raw: string }
+  | { type: 'absolute'; target: number; raw: string };
+
+export interface SeekResult {
+  positionSec: number;
+  durationSec: number;
+  positionFormatted: string;
+  durationFormatted: string;
+}
+
+export function parseSeekInput(input: string): SeekInstruction {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return { type: 'absolute', target: 0, raw: '0' };
+  }
+
+  // Check for relative prefix: +, -, or keywords "forward", "ahead", "back", "rewind"
+  let isRelative = false;
+  let sign = 1;
+  let rest = trimmed;
+
+  if (rest.startsWith('+')) {
+    isRelative = true;
+    sign = 1;
+    rest = rest.slice(1).trim();
+  } else if (rest.startsWith('-')) {
+    isRelative = true;
+    sign = -1;
+    rest = rest.slice(1).trim();
+  } else if (/^(forward|ahead|next)\b/i.test(rest)) {
+    isRelative = true;
+    sign = 1;
+    rest = rest.replace(/^(forward|ahead|next)\s*/i, '').trim();
+  } else if (/^(back|backward|rewind|prev)\b/i.test(rest)) {
+    isRelative = true;
+    sign = -1;
+    rest = rest.replace(/^(back|backward|rewind|prev)\s*/i, '').trim();
+  }
+
+  // Parse time specification: mm:ss, hh:mm:ss, or seconds with optional s/m units
+  let seconds = 0;
+
+  if (rest.includes(':')) {
+    const parts = rest.split(':').map((p) => parseInt(p, 10) || 0);
+    if (parts.length === 3) {
+      seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+    } else if (parts.length === 2) {
+      seconds = parts[0] * 60 + parts[1];
+    } else {
+      seconds = parts[0];
+    }
+  } else if (/[a-zA-Z]/.test(rest)) {
+    const mMatch = rest.match(/(\d+)\s*m/i);
+    const sMatch = rest.match(/(\d+)\s*s/i);
+    const m = mMatch ? parseInt(mMatch[1], 10) : 0;
+    const s = sMatch ? parseInt(sMatch[1], 10) : 0;
+    seconds = m * 60 + s;
+    if (!mMatch && !sMatch) {
+      seconds = parseInt(rest, 10) || 0;
+    }
+  } else {
+    seconds = parseInt(rest, 10) || 0;
+  }
+
+  if (isRelative) {
+    return {
+      type: 'relative',
+      delta: sign * seconds,
+      raw: trimmed,
+    };
+  }
+
+  return {
+    type: 'absolute',
+    target: seconds,
+    raw: trimmed,
+  };
+}
+
+export async function seek(seconds: number): Promise<SeekResult> {
   const pos = Math.max(0, Math.round(seconds));
-  await runAppleScript(`tell application "Spotify" to set player position to ${pos}`);
+  const script = `
+tell application "Spotify"
+  set durMs to 0
+  try
+    set durMs to duration of current track
+  end try
+  set durSec to round (durMs / 1000)
+  set targetPos to ${pos}
+  if durSec > 1 and targetPos > durSec then set targetPos to durSec
+  set player position to targetPos
+  return ("" & targetPos & "|||" & durSec)
+end tell`;
+  const res = await runAppleScript(script);
+  const parts = res.split('|||');
+  const positionSec = parseInt(parts[0], 10) || pos;
+  const durationSec = parseInt(parts[1], 10) || 0;
+  return {
+    positionSec,
+    durationSec,
+    positionFormatted: formatTime(positionSec),
+    durationFormatted: formatTime(durationSec),
+  };
+}
+
+export async function seekRelative(deltaSeconds: number): Promise<SeekResult> {
+  const delta = Math.round(deltaSeconds);
+  const script = `
+tell application "Spotify"
+  set curPos to player position
+  set durMs to 0
+  try
+    set durMs to duration of current track
+  end try
+  set durSec to round (durMs / 1000)
+  set newPos to (round curPos) + (${delta})
+  if newPos < 0 then set newPos to 0
+  if durSec > 1 and newPos > durSec then set newPos to durSec
+  set player position to newPos
+  return ("" & newPos & "|||" & durSec)
+end tell`;
+  const res = await runAppleScript(script);
+  const parts = res.split('|||');
+  const positionSec = parseInt(parts[0], 10) || 0;
+  const durationSec = parseInt(parts[1], 10) || 0;
+  return {
+    positionSec,
+    durationSec,
+    positionFormatted: formatTime(positionSec),
+    durationFormatted: formatTime(durationSec),
+  };
 }
 
 export async function setShuffle(enabled?: boolean): Promise<boolean> {

@@ -120,7 +120,7 @@ export function renderHelpCard(): string {
     { label: '/now, /status', value: 'Display current track detailed card' },
     { label: '/watch, /live', value: 'Launch interactive dynamic live player HUD' },
     { label: '/vol [0-100|+10|-10]', value: 'Set or adjust playback volume' },
-    { label: '/seek <sec|mm:ss>', value: 'Jump to specific position in song' },
+    { label: '/seek [+30|+1:30|mm:ss]', value: 'Jump or advance/rewind track (+30, +1:30, 2:00)' },
     { label: '/shuffle', value: 'Toggle shuffle mode (on/off)' },
     { label: '/repeat', value: 'Toggle repeat mode (on/off)' },
     { label: '/lyrics', value: 'Fetch synced/plain lyrics for current song' },
