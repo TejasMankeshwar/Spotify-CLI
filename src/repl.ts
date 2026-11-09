@@ -21,12 +21,13 @@ import {
   launchSpotify,
   isSpotifyRunning,
 } from './spotify/applescript.ts';
-import { fetchLyrics } from './spotify/lyrics.ts';
+import { fetchLyrics, parseLyricsMode } from './spotify/lyrics.ts';
 import { getSpotifyApiToken } from './spotify/search.ts';
 import { renderTrackCard, renderCompactTicker, renderHelpCard } from './ui/card.ts';
 import { renderBanner } from './ui/banner.ts';
 import { createSpinner } from './ui/spinner.ts';
 import { runLiveHUD } from './ui/live-ticker.ts';
+import { runDynamicLyrics, prepareLyricsLines } from './ui/dynamic-lyrics.ts';
 import { runSearchPicker } from './ui/search-picker.ts';
 import { promptSelect } from './ui/selector.ts';
 import { bold, dim, cursor } from './ui/ansi.ts';
@@ -396,6 +397,18 @@ export async function startRepl(): Promise<void> {
       case '/lyrics':
       case 'lyrics':
       case 'words': {
+        const mode = parseLyricsMode(args);
+
+        if (mode === 'dynamic') {
+          if (rl) {
+            rl.close();
+            rl = null;
+          }
+          await runDynamicLyrics();
+          rl = createReplInterface();
+          return true;
+        }
+
         const spinner = createSpinner('Fetching lyrics...').start();
         const info = await getTrackInfo();
         if (!info) {
@@ -409,17 +422,24 @@ export async function startRepl(): Promise<void> {
           return true;
         }
 
+        const durSec = info.durationMs > 0 ? info.durationMs / 1000 : 180;
+        const linesToDisplay = prepareLyricsLines(lyrics, durSec);
+
         spinner.succeed(
           `Lyrics for ${theme.heading(lyrics.trackName)} by ${theme.secondary(lyrics.artistName)}:`
         );
         process.stdout.write('\n');
 
-        for (const line of lyrics.lines) {
-          const timestamp = lyrics.synced ? `${theme.muted(line.timeFormatted)}  ` : '';
+        for (const line of linesToDisplay) {
+          const timestamp = `${theme.muted(`[${line.timeFormatted}]`)}  `;
           const lineText = line.text ? theme.text(line.text) : '';
           process.stdout.write(`  ${timestamp}${lineText}\n`);
         }
         process.stdout.write('\n');
+
+        process.stdout.write(
+          `  ${theme.muted('💡 Tip: Type')} ${theme.primary('/lyrics -d')} ${theme.muted('for live 4-line dynamic lyrics.')}\n\n`
+        );
         return true;
       }
 

@@ -328,3 +328,22 @@ export async function fetchLyrics(trackName: string, artistName: string): Promis
 
   return null;
 }
+
+export type LyricsMode = 'full' | 'dynamic';
+
+export function parseLyricsMode(input?: string): LyricsMode {
+  const trimmed = input?.trim().toLowerCase() || '';
+  if (
+    trimmed === '-d' ||
+    trimmed === '--dynamic' ||
+    trimmed === 'dynamic' ||
+    trimmed === '-l' ||
+    trimmed === '--live' ||
+    trimmed.startsWith('-d ') ||
+    trimmed.startsWith('--dynamic ')
+  ) {
+    return 'dynamic';
+  }
+  // Default to full lyrics when running 'lyrics', 'lyrics -f', etc.
+  return 'full';
+}

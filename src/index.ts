@@ -21,11 +21,12 @@ import {
   playSearch,
   playUri,
 } from './spotify/applescript.ts';
-import { fetchLyrics } from './spotify/lyrics.ts';
+import { fetchLyrics, parseLyricsMode } from './spotify/lyrics.ts';
 import { renderTrackCard, renderCompactTicker, renderHelpCard } from './ui/card.ts';
 import { renderBanner } from './ui/banner.ts';
 import { createSpinner } from './ui/spinner.ts';
 import { runLiveHUD } from './ui/live-ticker.ts';
+import { runDynamicLyrics, prepareLyricsLines } from './ui/dynamic-lyrics.ts';
 import { runSearchPicker } from './ui/search-picker.ts';
 import { getSpotifyApiToken } from './spotify/search.ts';
 import { startRepl } from './repl.ts';
@@ -348,6 +349,13 @@ async function main() {
     }
 
     case 'lyrics': {
+      const mode = parseLyricsMode(rest);
+
+      if (mode === 'dynamic') {
+        await runDynamicLyrics();
+        process.exit(0);
+      }
+
       const spinner = createSpinner('Searching lyrics...').start();
       const info = await getTrackInfo();
       if (!info) {
@@ -359,13 +367,22 @@ async function main() {
         spinner.fail(`No lyrics found for "${info.name}" by ${info.artist}.`);
         process.exit(1);
       }
+
+      const durSec = info.durationMs > 0 ? info.durationMs / 1000 : 180;
+      const linesToDisplay = prepareLyricsLines(lyrics, durSec);
+
       spinner.succeed(
         `Lyrics for ${bold(lyrics.trackName)} by ${lyrics.artistName}:\n`
       );
-      for (const line of lyrics.lines) {
-        const timestamp = lyrics.synced ? `${theme.muted(line.timeFormatted)}  ` : '';
+
+      for (const line of linesToDisplay) {
+        const timestamp = `${theme.muted(`[${line.timeFormatted}]`)}  `;
         process.stdout.write(`  ${timestamp}${theme.text(line.text)}\n`);
       }
+
+      process.stdout.write(
+        `\n  ${theme.muted('💡 Tip: Run')} ${theme.primary('spotify lyrics -d')} ${theme.muted('for live 4-line dynamic lyrics.')}\n`
+      );
       process.exit(0);
     }
 

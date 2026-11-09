@@ -8,7 +8,9 @@ import { parseVolumeInput, parseSeekInput } from '../src/spotify/applescript.ts'
 import { searchTracks, resolveSpotifyUri } from '../src/spotify/search.ts';
 import { loadTrackCache } from '../src/config.ts';
 import { renderBanner, applyGradient, DEFAULT_GRADIENT_STOPS } from '../src/ui/banner.ts';
-import type { TrackInfo } from '../src/spotify/types.ts';
+import { parseLyricsMode } from '../src/spotify/lyrics.ts';
+import { computeChunkState, prepareLyricsLines } from '../src/ui/dynamic-lyrics.ts';
+import type { TrackInfo, LyricsResult, LyricLine } from '../src/spotify/types.ts';
 
 const mockTrack: TrackInfo = {
   id: 'spotify:track:4cOdK2wGLETKBW3PvgPWqT',
@@ -168,4 +170,91 @@ test('resolveSpotifyUri resolves tracks from cache or catalog with valid Spotify
   const noBrainer = await resolveSpotifyUri('no brainer');
   assert.equal(noBrainer, cache['no brainer']);
 });
+
+test('parseLyricsMode defaults to full lyrics unless -d is specifically provided', () => {
+  // Dynamic mode when specifically requested
+  assert.equal(parseLyricsMode('-d'), 'dynamic');
+  assert.equal(parseLyricsMode('--dynamic'), 'dynamic');
+  assert.equal(parseLyricsMode('dynamic'), 'dynamic');
+  assert.equal(parseLyricsMode('-l'), 'dynamic');
+  assert.equal(parseLyricsMode('--live'), 'dynamic');
+  assert.equal(parseLyricsMode('-d extra'), 'dynamic');
+
+  // Full lyrics by default for 'lyrics', empty args, -f, or anything else
+  assert.equal(parseLyricsMode(''), 'full');
+  assert.equal(parseLyricsMode(undefined), 'full');
+  assert.equal(parseLyricsMode('-f'), 'full');
+  assert.equal(parseLyricsMode('--full'), 'full');
+  assert.equal(parseLyricsMode('full'), 'full');
+  assert.equal(parseLyricsMode('anything'), 'full');
+});
+
+test('computeChunkState implements 0.75s lead-in and 4-line chunk transitions', () => {
+  const sampleLines: LyricLine[] = [
+    { timeSec: 0, timeFormatted: '00:00', text: 'Line 0' },
+    { timeSec: 4, timeFormatted: '00:04', text: 'Line 1' },
+    { timeSec: 8, timeFormatted: '00:08', text: 'Line 2' },
+    { timeSec: 12, timeFormatted: '00:12', text: 'Line 3' },
+    { timeSec: 16, timeFormatted: '00:16', text: 'Line 4' },
+    { timeSec: 20, timeFormatted: '00:20', text: 'Line 5' },
+    { timeSec: 24, timeFormatted: '00:24', text: 'Line 6' },
+    { timeSec: 28, timeFormatted: '00:28', text: 'Line 7' },
+    { timeSec: 32, timeFormatted: '00:32', text: 'Line 8' },
+  ];
+
+  // At 0.0s: Line 0 is active (Page 1/3)
+  const stateAtStart = computeChunkState(0, sampleLines, 0.75);
+  assert.equal(stateAtStart.activeIdx, 0);
+  assert.equal(stateAtStart.chunkIndex, 0);
+  assert.equal(stateAtStart.totalChunks, 3);
+  assert.equal(stateAtStart.chunkLines.length, 4);
+  assert.equal(stateAtStart.chunkLines[0].text, 'Line 0');
+  assert.equal(stateAtStart.chunkLines[3].text, 'Line 3');
+
+  // Line 1 begins at 4.0s. At 3.25s (0.75s before), Line 1 becomes active
+  const stateBeforeLine1 = computeChunkState(3.24, sampleLines, 0.75);
+  assert.equal(stateBeforeLine1.activeIdx, 0); // Not yet 0.75s before 4.0s
+
+  const stateAtLeadIn1 = computeChunkState(3.25, sampleLines, 0.75);
+  assert.equal(stateAtLeadIn1.activeIdx, 1); // 3.25 + 0.75 = 4.0s -> active!
+  assert.equal(stateAtLeadIn1.chunkIndex, 0); // Still in first 4-line chunk
+
+  // Line 4 begins at 16.0s. At 15.25s (0.75s before), Line 4 triggers next 4-line chunk!
+  const stateBeforeChunk2 = computeChunkState(15.24, sampleLines, 0.75);
+  assert.equal(stateBeforeChunk2.activeIdx, 3);
+  assert.equal(stateBeforeChunk2.chunkIndex, 0);
+
+  const stateAtChunk2 = computeChunkState(15.25, sampleLines, 0.75);
+  assert.equal(stateAtChunk2.activeIdx, 4); // Line 4 is active
+  assert.equal(stateAtChunk2.chunkIndex, 1); // Switched to Page 2
+  assert.equal(stateAtChunk2.chunkLines[0].text, 'Line 4');
+  assert.equal(stateAtChunk2.chunkLines[3].text, 'Line 7');
+
+  // Line 8 begins at 32.0s. At 31.25s, switches to chunk 3 (Page 3)
+  const stateAtChunk3 = computeChunkState(31.25, sampleLines, 0.75);
+  assert.equal(stateAtChunk3.activeIdx, 8);
+  assert.equal(stateAtChunk3.chunkIndex, 2);
+  assert.equal(stateAtChunk3.chunkLines[0].text, 'Line 8');
+});
+
+test('prepareLyricsLines generates estimated timestamps for unsynced lyrics', () => {
+  const unsynced: LyricsResult = {
+    trackName: 'Test Song',
+    artistName: 'Test Artist',
+    synced: false,
+    source: 'genius',
+    lines: [
+      { timeSec: 0, timeFormatted: '--:--', text: 'First line' },
+      { timeSec: 0, timeFormatted: '--:--', text: 'Second line' },
+      { timeSec: 0, timeFormatted: '--:--', text: 'Third line' },
+    ],
+  };
+
+  const prepared = prepareLyricsLines(unsynced, 120); // 2 minute track
+  assert.equal(prepared.length, 3);
+  assert.equal(prepared[0].timeFormatted, '00:00');
+  assert.equal(prepared[1].timeFormatted, '00:40');
+  assert.equal(prepared[2].timeFormatted, '01:20');
+});
+
 

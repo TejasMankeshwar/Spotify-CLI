@@ -123,7 +123,7 @@ export function renderHelpCard(): string {
     { label: '/seek [+30|+1:30|mm:ss]', value: 'Jump or advance/rewind track (+30, +1:30, 2:00)' },
     { label: '/shuffle', value: 'Toggle shuffle mode (on/off)' },
     { label: '/repeat', value: 'Toggle repeat mode (on/off)' },
-    { label: '/lyrics', value: 'Fetch synced/plain lyrics for current song' },
+    { label: '/lyrics [-d]', value: 'Full lyrics by default, or dynamic live (-d)' },
     { label: '/theme [name]', value: 'Switch theme (spotify, celestial, amber, cyber)' },
     { label: '/clear', value: 'Clear terminal screen' },
     { label: '/help', value: 'Show this cheat sheet' },

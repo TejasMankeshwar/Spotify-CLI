@@ -12,7 +12,10 @@ Rather than hijacking your entire terminal with an outdated full-screen TUI (lik
 - **Interactive REPL & Slash Commands**: Fast, autocompleting interactive shell with command history and slash commands (`/play`, `/pause`, `/next`, `/vol`, `/lyrics`, `/watch`, `/theme`).
 - **Single-Shot CLI Mode**: Instant commands for terminal power-users, shell scripts, and tmux status bars (`spotify play "Starboy"`, `spotify pause`, `spotify vol +10`, `spotify ticker`).
 - **Dynamic Live Player HUD (`/watch`)**: Real-time non-flickering interactive playback monitor with live-ticking progress bar and single-key controls (Space to toggle, `n`/`p` to skip, `+`/`-` volume, `q` to return).
-- **Synced & Plain Lyrics**: Instant inline lyrics fetching via LRCLIB directly into your terminal.
+- **Full & Dynamic Lyrics (`/lyrics [-d]`)**:
+  - `lyrics` (or `lyrics -f`): Prints the entire lyrics with formatted timestamps `[mm:ss]` by default.
+  - `lyrics -d`: Interactive dynamic live lyrics displaying 4 lines at once with a 0.75-second vocal lead-in, live progress bar, active line tracking (`▶`), and smooth chunk transitions.
+  - Multi-source provider pipeline (LRCLIB, NetEase, and balanced Genius extraction) for both popular and regional/indie tracks.
 - **Zero-Latency macOS Integration**: Operates local macOS Spotify client with sub-millisecond response and zero complex OAuth setup required.
 - **Multiple Color Themes**: Switch dynamically between **Spotify** (Leaf & Bottle Green with Pure White), **Celestial** (Electric Sky & Indigo), **Amber** (Warm Terracotta & Stone), and **Cyber** (Neon Cyan & Pink).
 - **Zero External Dependencies**: Pure Node.js & native TypeScript with instant 0ms startup time.
@@ -81,7 +84,7 @@ spotify
 | `/seek <+sec|-sec|+mm:ss|mm:ss>` | Jump to timestamp or push forward/rewind (`+30`, `+1:30`, `02:00`) |
 | `/shuffle` | Toggle shuffle mode on/off |
 | `/repeat` | Toggle repeat mode on/off |
-| `/lyrics` | Fetch & stream synced/plain lyrics |
+| `/lyrics [-d]` | Full timestamped lyrics by default, or live 4-line dynamic lyrics with `-d` |
 | `/auth`, `/config` | Configure free Spotify Developer credentials |
 | `/theme [spotify\|celestial\|amber\|cyber]` | Switch active aesthetic theme |
 | `/clear` | Clear screen and redraw banner |
