@@ -371,8 +371,9 @@ async function main() {
       const durSec = info.durationMs > 0 ? info.durationMs / 1000 : 180;
       const linesToDisplay = prepareLyricsLines(lyrics, durSec);
 
+      const romanizedBadge = lyrics.transliterated ? ` ${theme.muted('[Romanized]')}` : '';
       spinner.succeed(
-        `Lyrics for ${bold(lyrics.trackName)} by ${lyrics.artistName}:\n`
+        `Lyrics for ${bold(lyrics.trackName)} by ${lyrics.artistName}${romanizedBadge}:\n`
       );
 
       for (const line of linesToDisplay) {

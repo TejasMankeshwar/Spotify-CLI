@@ -147,7 +147,8 @@ export async function runDynamicLyrics(initialLyrics?: LyricsResult): Promise<vo
     const state = computeChunkState(posSec, preparedLines, LEAD_IN_SEC);
 
     const titleText = truncate(`${info.name} · ${info.artist}`, contentWidth - 6);
-    const modeBadge = currentLyrics?.synced ? 'SYNCED' : 'AUTO-PACED';
+    const syncBadge = currentLyrics?.synced ? 'SYNCED' : 'AUTO-PACED';
+    const modeBadge = currentLyrics?.transliterated ? `${syncBadge} · ROMANIZED` : syncBadge;
     const titleSection = `╭─ ${theme.symbol} Dynamic Lyrics [${modeBadge}] `;
     const dashCount = Math.max(2, targetWidth - stringWidth(titleSection) - 1);
     const topBar = `${theme.border('╭─')} ${theme.heading(theme.symbol + ' Dynamic Lyrics')} ${theme.muted(`[${modeBadge}]`)} ${theme.border('─'.repeat(dashCount) + '╮')}`;

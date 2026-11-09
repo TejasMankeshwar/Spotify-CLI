@@ -15,6 +15,7 @@ Rather than hijacking your entire terminal with an outdated full-screen TUI (lik
 - **Full & Dynamic Lyrics (`/lyrics [-d]`)**:
   - `lyrics` (or `lyrics -f`): Prints the entire lyrics with formatted timestamps `[mm:ss]` by default.
   - `lyrics -d`: Interactive dynamic live lyrics displaying 4 lines at once with a 0.75-second vocal lead-in, live progress bar, active line tracking (`▶`), and smooth chunk transitions.
+  - **Auto-Romanized Indic Lyrics**: Automatically transliterates Indian songs given in native scripts (Devanagari, Gurmukhi, Bengali, Gujarati, Telugu, Tamil, etc.) into clean English/Latin script (e.g. *"Mere husn ke alawa kabhi dil bhi..."*) while preserving exact time sync.
   - Multi-source provider pipeline (LRCLIB, NetEase, and balanced Genius extraction) for both popular and regional/indie tracks.
 - **Zero-Latency macOS Integration**: Operates local macOS Spotify client with sub-millisecond response and zero complex OAuth setup required.
 - **Multiple Color Themes**: Switch dynamically between **Spotify** (Leaf & Bottle Green with Pure White), **Celestial** (Electric Sky & Indigo), **Amber** (Warm Terracotta & Stone), and **Cyber** (Neon Cyan & Pink).

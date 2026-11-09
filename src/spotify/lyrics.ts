@@ -1,4 +1,5 @@
 import type { LyricsResult, LyricLine } from './types.ts';
+import { transliterateLyrics } from './transliterate.ts';
 
 const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
@@ -295,7 +296,7 @@ async function tryLyricsOvh(track: string, artist: string): Promise<LyricsResult
   }
 }
 
-export async function fetchLyrics(trackName: string, artistName: string): Promise<LyricsResult | null> {
+async function fetchRawLyrics(trackName: string, artistName: string): Promise<LyricsResult | null> {
   const cleanTrack = cleanTrackTitle(trackName);
   const cleanArtist = cleanArtistName(artistName);
 
@@ -327,6 +328,12 @@ export async function fetchLyrics(trackName: string, artistName: string): Promis
   if (ovh && ovh.lines.length > 0) return ovh;
 
   return null;
+}
+
+export async function fetchLyrics(trackName: string, artistName: string): Promise<LyricsResult | null> {
+  const result = await fetchRawLyrics(trackName, artistName);
+  if (!result) return null;
+  return transliterateLyrics(result);
 }
 
 export type LyricsMode = 'full' | 'dynamic';

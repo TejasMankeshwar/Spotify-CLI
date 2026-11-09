@@ -10,6 +10,7 @@ import { loadTrackCache } from '../src/config.ts';
 import { renderBanner, applyGradient, DEFAULT_GRADIENT_STOPS } from '../src/ui/banner.ts';
 import { parseLyricsMode } from '../src/spotify/lyrics.ts';
 import { computeChunkState, prepareLyricsLines } from '../src/ui/dynamic-lyrics.ts';
+import { containsIndic, transliterateIndic, transliterateLyrics } from '../src/spotify/transliterate.ts';
 import type { TrackInfo, LyricsResult, LyricLine } from '../src/spotify/types.ts';
 
 const mockTrack: TrackInfo = {
@@ -256,5 +257,64 @@ test('prepareLyricsLines generates estimated timestamps for unsynced lyrics', ()
   assert.equal(prepared[1].timeFormatted, '00:40');
   assert.equal(prepared[2].timeFormatted, '01:20');
 });
+
+test('containsIndic accurately detects Devanagari, Gurmukhi, and other Indic scripts', () => {
+  assert.equal(containsIndic('मेरे हुस्न के अलावा कभी दिल भी...'), true);
+  assert.equal(containsIndic('ਹੁਸਨ ਤੇਰਾ ਤੌਬਾ-ਤੌਬਾ'), true);
+  assert.equal(containsIndic('আমি তোমায় ভালোবাসি'), true);
+  assert.equal(containsIndic('నాటు నాటు'), true);
+  assert.equal(containsIndic('Bohemian Rhapsody Queen'), false);
+  assert.equal(containsIndic('12345 !@#$%'), false);
+});
+
+test('transliterateIndic accurately romanizes Devanagari and Gurmukhi into natural English script', () => {
+  // User's exact prompt example
+  const husnLine = transliterateIndic('मेरे हुस्न के अलावा कभी दिल भी...');
+  assert.equal(husnLine, 'Mere husn ke alawa kabhi dil bhi...');
+
+  // Devanagari lines with nukta, conjuncts, nasalization
+  assert.equal(transliterateIndic('इश्क़ में दिल बना है'), 'Ishq mein dil bana hai');
+  assert.equal(transliterateIndic('इश्क़ में दिल फ़ना है, ohh'), 'Ishq mein dil fana hai, ohh');
+  assert.equal(transliterateIndic('क्या इतनी आसान हैं?'), 'Kya itni aasaan hain?');
+  assert.equal(transliterateIndic('हाँ, कितनी नादान मैं'), 'Haan, kitni nadaan main');
+  assert.equal(transliterateIndic('मैंने तुझको चुना है, ohh, oh'), 'Maine tujhko chuna hai, ohh, oh');
+
+  // Gurmukhi (Punjabi) lines
+  assert.equal(transliterateIndic('ਹੁਸਨ ਤੇਰਾ ਤੌਬਾ-ਤੌਬਾ, ਤੌਬਾ-ਤੌਬਾ'), 'Husn tera tauba-tauba, tauba-tauba');
+  assert.equal(transliterateIndic('(ਹਾਂ, ਤੌਬਾ-ਤੌਬਾ) Yeah Proof'), '(Haan, tauba-tauba) Yeah Proof');
+
+  // English pass-through (no modification)
+  assert.equal(transliterateIndic("I'm blinded by the lights"), "I'm blinded by the lights");
+});
+
+test('transliterateLyrics converts entire LyricsResult object and flags transliterated: true', () => {
+  const indicLyrics: LyricsResult = {
+    trackName: 'Husn',
+    artistName: 'Anuv Jain',
+    synced: true,
+    lines: [
+      { timeSec: 10, timeFormatted: '00:10', text: 'देखो-देखो, कैसी बातें यहाँ की' },
+      { timeSec: 25, timeFormatted: '00:25', text: 'मेरे हुस्न के अलावा कभी दिल भी...' },
+    ],
+  };
+
+  const romanized = transliterateLyrics(indicLyrics);
+  assert.equal(romanized.transliterated, true);
+  assert.equal(romanized.lines[1].text, 'Mere husn ke alawa kabhi dil bhi...');
+  assert.equal(romanized.lines[1].timeSec, 25);
+  assert.equal(romanized.lines[1].timeFormatted, '00:25');
+
+  // Non-indic lyrics remain untouched with transliterated undefined
+  const englishLyrics: LyricsResult = {
+    trackName: 'Starboy',
+    artistName: 'The Weeknd',
+    synced: true,
+    lines: [{ timeSec: 10, timeFormatted: '00:10', text: "I'm tryna put you in the worst mood" }],
+  };
+  const untouched = transliterateLyrics(englishLyrics);
+  assert.equal(untouched.transliterated, undefined);
+  assert.equal(untouched.lines[0].text, "I'm tryna put you in the worst mood");
+});
+
 
 

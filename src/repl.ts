@@ -425,8 +425,9 @@ export async function startRepl(): Promise<void> {
         const durSec = info.durationMs > 0 ? info.durationMs / 1000 : 180;
         const linesToDisplay = prepareLyricsLines(lyrics, durSec);
 
+        const romanizedBadge = lyrics.transliterated ? ` ${theme.muted('[Romanized]')}` : '';
         spinner.succeed(
-          `Lyrics for ${theme.heading(lyrics.trackName)} by ${theme.secondary(lyrics.artistName)}:`
+          `Lyrics for ${theme.heading(lyrics.trackName)} by ${theme.secondary(lyrics.artistName)}${romanizedBadge}:`
         );
         process.stdout.write('\n');
 

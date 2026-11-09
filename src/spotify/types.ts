@@ -31,6 +31,7 @@ export interface LyricLine {
   timeSec: number;
   timeFormatted: string;
   text: string;
+  rawText?: string;
 }
 
 export interface LyricsResult {
@@ -38,5 +39,6 @@ export interface LyricsResult {
   artistName: string;
   synced: boolean;
   lines: LyricLine[];
+  transliterated?: boolean;
 }
 
