@@ -11,6 +11,9 @@ import { renderBanner, applyGradient, DEFAULT_GRADIENT_STOPS } from '../src/ui/b
 import { parseLyricsMode } from '../src/spotify/lyrics.ts';
 import { computeChunkState, prepareLyricsLines } from '../src/ui/dynamic-lyrics.ts';
 import { containsIndic, transliterateIndic, transliterateLyrics } from '../src/spotify/transliterate.ts';
+import { getDaemonStatus, isLibrespotInstalled } from '../src/spotify/daemon.ts';
+import { getActivePlaybackEngine } from '../src/spotify/player.ts';
+import { formatMs } from '../src/spotify/web-player.ts';
 import type { TrackInfo, LyricsResult, LyricLine } from '../src/spotify/types.ts';
 
 const mockTrack: TrackInfo = {
@@ -314,6 +317,27 @@ test('transliterateLyrics converts entire LyricsResult object and flags translit
   const untouched = transliterateLyrics(englishLyrics);
   assert.equal(untouched.transliterated, undefined);
   assert.equal(untouched.lines[0].text, "I'm tryna put you in the worst mood");
+});
+
+test('librespot daemon detection and status check', () => {
+  const installed = isLibrespotInstalled();
+  assert.equal(installed, true);
+
+  const status = getDaemonStatus();
+  assert.equal(status.installed, true);
+  assert.ok(status.binaryPath && status.binaryPath.includes('librespot'));
+  assert.equal(typeof status.running, 'boolean');
+});
+
+test('getActivePlaybackEngine returns valid playback engine', async () => {
+  const engine = await getActivePlaybackEngine();
+  assert.ok(engine === 'applescript' || engine === 'headless');
+});
+
+test('web-player formatMs formats milliseconds into mm:ss accurately', () => {
+  assert.equal(formatMs(0), '00:00');
+  assert.equal(formatMs(65000), '01:05');
+  assert.equal(formatMs(214000), '03:34');
 });
 
 

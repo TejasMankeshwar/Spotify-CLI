@@ -7,7 +7,7 @@ import {
   adjustVolume,
   setShuffle,
   setRepeat,
-} from '../spotify/applescript.ts';
+} from '../spotify/player.ts';
 import { renderTrackCard } from './card.ts';
 import { cursor, dim } from './ansi.ts';
 import { getTheme } from '../theme.ts';

@@ -124,6 +124,8 @@ export function renderHelpCard(): string {
     { label: '/shuffle', value: 'Toggle shuffle mode (on/off)' },
     { label: '/repeat', value: 'Toggle repeat mode (on/off)' },
     { label: '/lyrics [-d]', value: 'Full lyrics by default, or dynamic live (-d)' },
+    { label: '/daemon [start|stop]', value: 'Manage headless audio daemon (librespot 320k)' },
+    { label: '/engine', value: 'Check active playback engine (desktop vs headless)' },
     { label: '/theme [name]', value: 'Switch theme (spotify, celestial, amber, cyber)' },
     { label: '/clear', value: 'Clear terminal screen' },
     { label: '/help', value: 'Show this cheat sheet' },

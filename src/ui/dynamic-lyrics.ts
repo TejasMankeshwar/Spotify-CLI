@@ -1,4 +1,4 @@
-import { getTrackInfo, togglePlay, next, previous, adjustVolume } from '../spotify/applescript.ts';
+import { getTrackInfo, togglePlay, next, previous, adjustVolume } from '../spotify/player.ts';
 import { fetchLyrics, cleanTrackTitle, cleanArtistName } from '../spotify/lyrics.ts';
 import { getTheme } from '../theme.ts';
 import { cursor, bold, dim, stringWidth } from './ansi.ts';

@@ -20,7 +20,12 @@ import {
   setRepeat,
   playSearch,
   playUri,
-} from './spotify/applescript.ts';
+  getActivePlaybackEngine,
+  getDaemonStatus,
+  startLibrespotDaemon,
+  stopLibrespotDaemon,
+  startInteractiveOAuthLogin,
+} from './spotify/player.ts';
 import { fetchLyrics, parseLyricsMode } from './spotify/lyrics.ts';
 import { renderTrackCard, renderCompactTicker, renderHelpCard } from './ui/card.ts';
 import { renderBanner } from './ui/banner.ts';
@@ -197,8 +202,68 @@ async function main() {
       break;
     }
 
+    case 'engine': {
+      const engine = await getActivePlaybackEngine();
+      const dStatus = getDaemonStatus();
+      process.stdout.write(`\n${bold('Spotify-CLI Playback Engine:')}\n`);
+      if (engine === 'applescript') {
+        process.stdout.write(`  Engine:   ${theme.playing('● Spotify Desktop App (AppleScript)')}\n`);
+        process.stdout.write(`  Quality:  320 kbps (Desktop client)\n`);
+      } else {
+        process.stdout.write(`  Engine:   ${theme.playing('● Headless Daemon (librespot)')}\n`);
+        process.stdout.write(`  Quality:  320 kbps Extreme (CoreAudio rodio)\n`);
+        process.stdout.write(`  RAM/CPU:  ~20 MB RAM / <0.5% CPU (Headless)\n`);
+      }
+      process.stdout.write(`  Daemon:   ${dStatus.running ? theme.playing(`Running (PID: ${dStatus.pid})`) : theme.muted('Stopped')}\n\n`);
+      process.exit(0);
+    }
+
+    case 'daemon': {
+      const subCmd = (args[0] || '').toLowerCase().trim();
+      const dStatus = getDaemonStatus();
+
+      if (subCmd === 'start') {
+        const res = startLibrespotDaemon();
+        if (res.success) {
+          process.stdout.write(`${theme.playing('✔')} ${res.message}\n`);
+        } else {
+          process.stdout.write(`${theme.paused('✖')} ${res.message}\n`);
+        }
+      } else if (subCmd === 'stop') {
+        const res = stopLibrespotDaemon();
+        process.stdout.write(`${theme.playing('✔')} ${res.message}\n`);
+      } else if (subCmd === 'restart') {
+        stopLibrespotDaemon();
+        await new Promise((r) => setTimeout(r, 400));
+        const res = startLibrespotDaemon();
+        process.stdout.write(`${theme.playing('✔')} Restarted daemon: ${res.message}\n`);
+      } else {
+        process.stdout.write(`\n${bold('Headless Audio Daemon (librespot):')}\n`);
+        process.stdout.write(`  Installed:  ${dStatus.installed ? theme.playing('YES') + ' (' + dStatus.binaryPath + ')' : theme.paused('NO (brew install librespot)')}\n`);
+        process.stdout.write(`  Status:     ${dStatus.running ? theme.playing('RUNNING') + ` (PID: ${dStatus.pid})` : theme.muted('STOPPED')}\n`);
+        process.stdout.write(`  Cache:      ${theme.muted(dStatus.cacheDir)}\n`);
+        process.stdout.write(`  Usage:      spotify daemon start | stop | restart\n\n`);
+      }
+      process.exit(0);
+    }
+
     case 'auth':
     case 'config': {
+      // If run as 'spotify auth' or 'spotify auth login'
+      if (!args.includes('--client-id') && !args.includes('--client-secret')) {
+        process.stdout.write(`\n${bold('Spotify 1-Click Browser Authentication')}\n`);
+        process.stdout.write(`Opening Spotify login in your default browser...\n`);
+        process.stdout.write(`Click "Agree" in your browser to authorize headless playback.\n\n`);
+
+        const res = await startInteractiveOAuthLogin();
+        if (res.success) {
+          process.stdout.write(`${theme.playing('✔')} ${res.message}\n`);
+        } else {
+          process.stdout.write(`${theme.paused('✖')} ${res.message}\n`);
+        }
+        process.exit(0);
+      }
+
       // Allow passing --client-id and --client-secret
       const cIdIndex = args.indexOf('--client-id');
       const cSecIndex = args.indexOf('--client-secret');
