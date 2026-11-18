@@ -11,6 +11,17 @@ export interface UserConfig {
   spotifyClientSecret?: string;
 }
 
+export interface PlaybackSession {
+  trackUri: string;
+  trackName: string;
+  artist: string;
+  album: string;
+  contextUri?: string;
+  positionMs: number;
+  durationMs: number;
+  timestamp: number;
+}
+
 const DEFAULT_CONFIG: UserConfig = {
   theme: 'spotify',
   volumeStep: 5,
@@ -20,6 +31,7 @@ const DEFAULT_CONFIG: UserConfig = {
 const CONFIG_DIR = path.join(os.homedir(), '.config', 'spotify-cli');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 const CACHE_FILE = path.join(CONFIG_DIR, 'track_cache.json');
+const SESSION_FILE = path.join(CONFIG_DIR, 'session.json');
 
 // Built-in seed cache for instant zero-latency playback of top searched tracks
 const INITIAL_TRACK_CACHE: Record<string, string> = {
@@ -49,7 +61,7 @@ export function loadTrackCache(): Record<string, string> {
       const data = fs.readFileSync(CACHE_FILE, 'utf-8');
       return { ...INITIAL_TRACK_CACHE, ...JSON.parse(data) };
     }
-  } catch {}
+  } catch { }
   return { ...INITIAL_TRACK_CACHE };
 }
 
@@ -78,7 +90,7 @@ export function saveTrackCacheItem(key: string, uri: string): void {
     const current = loadTrackCache();
     current[key.toLowerCase().trim()] = uri.trim();
     fs.writeFileSync(CACHE_FILE, JSON.stringify(current, null, 2), 'utf-8');
-  } catch {}
+  } catch { }
 }
 
 export function loadConfig(): UserConfig {
@@ -106,4 +118,64 @@ export function saveConfig(config: Partial<UserConfig>): UserConfig {
     return { ...DEFAULT_CONFIG, ...config };
   }
 }
+
+let inMemorySession: PlaybackSession | null = null;
+
+function getSessionFilePath(): string {
+  try {
+    if (!fs.existsSync(CONFIG_DIR)) {
+      fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    }
+    fs.accessSync(CONFIG_DIR, fs.constants.R_OK | fs.constants.W_OK);
+    return SESSION_FILE;
+  } catch {
+    const fallbackDir = path.join(os.tmpdir(), 'spotify-cli');
+    try {
+      if (!fs.existsSync(fallbackDir)) {
+        fs.mkdirSync(fallbackDir, { recursive: true });
+      }
+    } catch {}
+    return path.join(fallbackDir, 'session.json');
+  }
+}
+
+export function loadLastSession(): PlaybackSession | null {
+  try {
+    const filePath = getSessionFilePath();
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf-8');
+      const session = JSON.parse(data);
+      if (session && session.trackUri) {
+        inMemorySession = session as PlaybackSession;
+        return inMemorySession;
+      }
+    }
+  } catch {}
+  return inMemorySession;
+}
+
+export function saveLastSession(update: Partial<PlaybackSession>): void {
+  const current = loadLastSession() || {
+    trackUri: '',
+    trackName: '',
+    artist: '',
+    album: '',
+    positionMs: 0,
+    durationMs: 0,
+    timestamp: Date.now(),
+  };
+  const merged: PlaybackSession = {
+    ...current,
+    ...update,
+    timestamp: Date.now(),
+  };
+  if (merged.trackUri) {
+    inMemorySession = merged;
+    try {
+      const filePath = getSessionFilePath();
+      fs.writeFileSync(filePath, JSON.stringify(merged, null, 2), 'utf-8');
+    } catch {}
+  }
+}
+
 

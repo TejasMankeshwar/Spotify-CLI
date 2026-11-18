@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { getConfigDir } from './daemon.ts';
+import { getConfigDir, stopLibrespotDaemon, startLibrespotDaemon } from './daemon.ts';
 import { loadConfig } from '../config.ts';
 
 export interface AuthTokens {
@@ -15,8 +15,8 @@ export interface AuthTokens {
 }
 
 const DEFAULT_CLIENT_ID = '65b708073fc0480ea92a077233ca87bd';
-const REDIRECT_PORT = 8888;
-const REDIRECT_URI = `http://127.0.0.1:${REDIRECT_PORT}/callback`;
+const REDIRECT_PORT = 5588;
+const REDIRECT_URI = `http://127.0.0.1:${REDIRECT_PORT}/login`;
 const SCOPES = [
   'user-read-playback-state',
   'user-modify-playback-state',
@@ -115,6 +115,10 @@ export async function startInteractiveOAuthLogin(): Promise<{
   success: boolean;
   message: string;
 }> {
+  // Ensure port 5588 is free by stopping any lingering daemon
+  stopLibrespotDaemon();
+  await new Promise((r) => setTimeout(r, 250));
+
   const clientId = getEffectiveClientId();
   const verifier = crypto.randomBytes(48).toString('base64url');
   const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
@@ -139,7 +143,7 @@ export async function startInteractiveOAuthLogin(): Promise<{
       try {
         const reqUrl = new URL(req.url || '/', `http://127.0.0.1:${REDIRECT_PORT}`);
 
-        if (reqUrl.pathname === '/callback') {
+        if (reqUrl.pathname === '/login' || reqUrl.pathname === '/login/' || reqUrl.pathname === '/callback') {
           const code = reqUrl.searchParams.get('code');
           const returnedState = reqUrl.searchParams.get('state');
           const error = reqUrl.searchParams.get('error');
@@ -147,9 +151,9 @@ export async function startInteractiveOAuthLogin(): Promise<{
           if (error) {
             res.writeHead(400, { 'Content-Type': 'text/html' });
             res.end(`
-              <html><body style="font-family:system-ui;text-align:center;padding:50px;background:#181818;color:#ff5555">
-                <h2>Authentication Failed</h2>
-                <p>${error}</p>
+              <!DOCTYPE html><html><body style="font-family:system-ui;text-align:center;padding:50px;background:#121212;color:#ff5555">
+                <h2>Authentication Cancelled or Failed</h2>
+                <p style="color:#aaa">${error}</p>
               </body></html>
             `);
             if (!resolved) {
@@ -163,7 +167,7 @@ export async function startInteractiveOAuthLogin(): Promise<{
           if (!code || returnedState !== state) {
             res.writeHead(400, { 'Content-Type': 'text/html' });
             res.end(`
-              <html><body style="font-family:system-ui;text-align:center;padding:50px;background:#181818;color:#ffaa00">
+              <!DOCTYPE html><html><body style="font-family:system-ui;text-align:center;padding:50px;background:#121212;color:#ffaa00">
                 <h2>Invalid Request State</h2>
               </body></html>
             `);
@@ -195,9 +199,9 @@ export async function startInteractiveOAuthLogin(): Promise<{
             const errText = await tokenRes.text();
             res.writeHead(500, { 'Content-Type': 'text/html' });
             res.end(`
-              <html><body style="font-family:system-ui;text-align:center;padding:50px;background:#181818;color:#ff5555">
+              <!DOCTYPE html><html><body style="font-family:system-ui;text-align:center;padding:50px;background:#121212;color:#ff5555">
                 <h2>Token Exchange Failed</h2>
-                <pre>${errText}</pre>
+                <pre style="color:#aaa">${errText}</pre>
               </body></html>
             `);
             if (!resolved) {
@@ -219,21 +223,82 @@ export async function startInteractiveOAuthLogin(): Promise<{
 
           saveAuthTokens(tokens);
 
-          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
           res.end(`
-            <html><body style="font-family:system-ui;text-align:center;padding:60px;background:#121212;color:#1DB954">
-              <h1>✔ Connected to Spotify-CLI!</h1>
-              <p style="color:#e0e0e0;font-size:16px;">Headless playback authorization is complete.</p>
-              <p style="color:#888;">You can close this window and return to your terminal.</p>
-            </body></html>
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <title>Connected to Spotify-CLI</title>
+              <style>
+                body {
+                  background: #121212;
+                  color: #FFFFFF;
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  height: 100vh;
+                  margin: 0;
+                }
+                .card {
+                  background: #181818;
+                  border: 1px solid #282828;
+                  border-radius: 12px;
+                  padding: 40px;
+                  max-width: 440px;
+                  text-align: center;
+                  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                }
+                .check {
+                  color: #1DB954;
+                  font-size: 52px;
+                  margin-bottom: 16px;
+                }
+                h1 {
+                  font-size: 24px;
+                  margin: 0 0 10px 0;
+                  color: #FFFFFF;
+                }
+                p {
+                  color: #B3B3B3;
+                  font-size: 15px;
+                  margin: 0 0 16px 0;
+                  line-height: 1.4;
+                }
+                .pill {
+                  display: inline-block;
+                  padding: 8px 18px;
+                  background: #1DB954;
+                  color: #000000;
+                  font-weight: 600;
+                  border-radius: 20px;
+                  font-size: 13px;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="card">
+                <div class="check">✔</div>
+                <h1>Connected to Spotify-CLI</h1>
+                <p>Your Spotify Premium account has been linked successfully. Headless audio streaming is active.</p>
+                <div class="pill">You can close this tab and return to Terminal</div>
+              </div>
+            </body>
+            </html>
           `);
+
+          // Start the librespot daemon with the new token
+          try {
+            startLibrespotDaemon({ accessToken: tokens.accessToken });
+          } catch {}
 
           if (!resolved) {
             resolved = true;
             server.close();
             resolve({
               success: true,
-              message: 'Successfully authenticated Spotify Premium account!',
+              message: 'Successfully authenticated Spotify Premium account! Headless playback ready.',
             });
           }
         }
@@ -246,8 +311,15 @@ export async function startInteractiveOAuthLogin(): Promise<{
       }
     });
 
+    server.on('error', (err: any) => {
+      if (!resolved) {
+        resolved = true;
+        resolve({ success: false, message: `Failed to bind OAuth server on port ${REDIRECT_PORT}: ${err.message}` });
+      }
+    });
+
     server.listen(REDIRECT_PORT, '127.0.0.1', () => {
-      // Open URL in macOS browser
+      process.stdout.write(`\n  If your browser does not open automatically, open this URL:\n  \x1b[38;2;29;185;84m${authUrl}\x1b[0m\n\n`);
       try {
         spawn('open', [authUrl], { stdio: 'ignore' });
       } catch {}

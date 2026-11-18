@@ -16,6 +16,7 @@ export interface TrackInfo {
   isShuffling: boolean;
   spotifyUrl?: string;
   artworkUrl?: string;
+  contextUri?: string;
 }
 
 export interface SearchItem {

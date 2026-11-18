@@ -5,7 +5,8 @@ import os from 'node:os';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { getTheme } from '../theme.ts';
 import { cursor, bold, dim, stringWidth } from './ansi.ts';
-import { getTrackInfo, pause, play, playUri, setVolume, runAppleScript, type TrackInfo } from '../spotify/applescript.ts';
+import { getTrackInfo, pause, play, playUri, setVolume, isSpotifyRunning } from '../spotify/player.ts';
+import { runAppleScript } from '../spotify/applescript.ts';
 import { searchTracks, resolveSpotifyUri, type SearchResultItem } from '../spotify/search.ts';
 
 // Cache directory for downloaded preview audio files
@@ -107,6 +108,13 @@ export async function runSearchPicker(query: string): Promise<SearchResultItem |
 
     isPreviewActive = false;
     isPreviewLoading = false;
+
+    const isAppRunning = await isSpotifyRunning();
+    if (!isAppRunning) {
+      isRestoring = false;
+      draw();
+      return;
+    }
 
     try {
       if (sessionOriginalTrack && sessionOriginalTrack.uri) {
@@ -271,7 +279,8 @@ end tell`;
         return;
       }
 
-      if (uri) {
+      const isAppRunning = await isSpotifyRunning();
+      if (uri && isAppRunning) {
         await playUri(uri, true);
         isPreviewActive = true;
         isPreviewLoading = false;
@@ -442,7 +451,10 @@ end tell`;
 
         // Ensure volume is restored to full baseline
         try {
-          await setVolume(savedVolume > 20 ? savedVolume : 75);
+          const isAppRunning = await isSpotifyRunning();
+          if (isAppRunning) {
+            await setVolume(savedVolume > 20 ? savedVolume : 75);
+          }
         } catch {}
 
         const selected = items[selectedIndex];

@@ -20,11 +20,15 @@ import {
   setRepeat,
   playSearch,
   playUri,
+  playUriDetailed,
   getActivePlaybackEngine,
   getDaemonStatus,
   startLibrespotDaemon,
   stopLibrespotDaemon,
   startInteractiveOAuthLogin,
+  startLibrespotInteractiveAuth,
+  isHeadlessReady,
+  isSpotifyRunning,
 } from './spotify/player.ts';
 import { fetchLyrics, parseLyricsMode } from './spotify/lyrics.ts';
 import { renderTrackCard, renderCompactTicker, renderHelpCard } from './ui/card.ts';
@@ -147,16 +151,30 @@ async function main() {
       }
       const selected = await runSearchPicker(rest);
       if (selected) {
+        const isAppRunning = await isSpotifyRunning();
+        if (!isAppRunning && !isHeadlessReady()) {
+          process.stdout.write(`\n  ${theme.paused('✖')} Spotify desktop app is not running, and Headless mode is not authenticated.\n`);
+          process.stdout.write(`  ${theme.muted('To stream music without the Spotify app, authenticate once with:')}\n`);
+          process.stdout.write(`    ${theme.primary('spotify auth')}\n\n`);
+          process.exit(1);
+        }
+
         const spinner = createSpinner(`Playing "${selected.name}"...`).start();
         if (selected.uri) {
-          await playUri(selected.uri);
-          spinner.succeed(`Playing: ${theme.primary(selected.name)} by ${theme.secondary(selected.artist)}`);
+          const res = await playUriDetailed(selected.uri);
+          if (res.success) {
+            spinner.succeed(`Playing: ${theme.primary(selected.name)} by ${theme.secondary(selected.artist)}`);
+          } else {
+            spinner.fail(`Could not play: ${theme.primary(selected.name)}. ${res.error || ''}`);
+            process.exit(1);
+          }
         } else {
           const res = await playSearch(`${selected.name} ${selected.artist}`);
-          if (res.hasDirectUri) {
+          if (res.success) {
             spinner.succeed(`Playing: ${theme.primary(res.trackName)}`);
           } else {
-            spinner.succeed(`Searching in Spotify: ${theme.primary(selected.name)}`);
+            spinner.fail(`Could not play: ${theme.primary(selected.name)}. ${res.error || ''}`);
+            process.exit(1);
           }
         }
         setTimeout(async () => {
@@ -176,29 +194,57 @@ async function main() {
     case 'resume': {
       if (!rest) {
         const spinner = createSpinner('Resuming playback...').start();
-        await play();
-        spinner.succeed('Playback resumed.');
+        const result = await play();
+        if (result.success) {
+          spinner.succeed(result.message);
+          const info = result.track || (await getTrackInfo());
+          if (info) {
+            process.stdout.write(`  ${renderCompactTicker(info)}\n\n`);
+          }
+          process.exit(0);
+        } else {
+          spinner.fail(result.message);
+          process.stdout.write(`Usage: spotify play <song title, artist, or album>\n`);
+          process.exit(1);
+        }
       } else {
+        const isAppRunning = await isSpotifyRunning();
+        if (!isAppRunning && !isHeadlessReady()) {
+          process.stdout.write(`\n  ${theme.paused('✖')} Spotify desktop app is not running, and Headless mode is not authenticated.\n`);
+          process.stdout.write(`  ${theme.muted('To stream music without the Spotify app, authenticate once with:')}\n`);
+          process.stdout.write(`    ${theme.primary('spotify auth')}\n\n`);
+          process.exit(1);
+        }
         const spinner = createSpinner(`Searching and playing "${rest}"...`).start();
         if (rest.startsWith('spotify:')) {
-          await playUri(rest);
-          spinner.succeed(`Playing: ${theme.primary(rest)}`);
+          const res = await playUriDetailed(rest);
+          if (res.success) {
+            spinner.succeed(`Playing: ${theme.primary(rest)}`);
+          } else {
+            spinner.fail(`Could not play: ${theme.primary(rest)}. ${res.error || ''}`);
+            process.exit(1);
+          }
         } else {
           const res = await playSearch(rest);
-          if (res.hasDirectUri) {
+          if (res.success) {
             spinner.succeed(`Playing: ${theme.primary(res.trackName)}`);
           } else {
-            spinner.succeed(`Searching in Spotify: ${theme.primary(res.trackName)}`);
+            spinner.fail(`Could not play: ${theme.primary(res.trackName || rest)}. ${res.error || ''}`);
+            process.exit(1);
           }
         }
       }
-      setTimeout(async () => {
-        const info = await getTrackInfo();
-        if (info) {
-          process.stdout.write('\n' + renderTrackCard(info) + '\n\n');
-        }
-        process.exit(0);
-      }, 600);
+      // Poll briefly for playback to begin and display track card
+      let info: TrackInfo | null = null;
+      for (let i = 0; i < 4; i++) {
+        await new Promise((r) => setTimeout(r, 250));
+        info = await getTrackInfo();
+        if (info && info.state === 'playing') break;
+      }
+      if (info) {
+        process.stdout.write('\n' + renderTrackCard(info) + '\n\n');
+      }
+      process.exit(0);
       break;
     }
 
@@ -255,7 +301,7 @@ async function main() {
         process.stdout.write(`Opening Spotify login in your default browser...\n`);
         process.stdout.write(`Click "Agree" in your browser to authorize headless playback.\n\n`);
 
-        const res = await startInteractiveOAuthLogin();
+        const res = await startLibrespotInteractiveAuth();
         if (res.success) {
           process.stdout.write(`${theme.playing('✔')} ${res.message}\n`);
         } else {
@@ -276,11 +322,16 @@ async function main() {
       }
       if (Object.keys(updates).length > 0) {
         saveConfig(updates);
-        const token = await getSpotifyApiToken();
-        if (token) {
-          process.stdout.write(`${theme.playing('✔')} Spotify Developer API credentials configured successfully!\n`);
+        if (updates.spotifyClientId && !updates.spotifyClientSecret) {
+          process.stdout.write(`${theme.playing('✔')} Spotify Client ID saved successfully!\n`);
+          process.stdout.write(`Run ${theme.primary('spotify auth')} to link your Spotify account with your dedicated quota.\n\n`);
         } else {
-          process.stdout.write(`${theme.paused('⚠')} Credentials saved, but token test failed. Please verify keys.\n`);
+          const token = await getSpotifyApiToken();
+          if (token) {
+            process.stdout.write(`${theme.playing('✔')} Spotify Developer API credentials configured successfully!\n`);
+          } else {
+            process.stdout.write(`${theme.paused('⚠')} Credentials saved, but token test failed. Please verify keys.\n`);
+          }
         }
       } else {
         process.stdout.write(`Usage: spotify config --client-id <ID> --client-secret <SECRET>\n`);

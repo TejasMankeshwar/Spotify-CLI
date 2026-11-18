@@ -1,4 +1,5 @@
 import { loadConfig, saveConfig, loadTrackCache, saveTrackCacheItem, findInTrackCache } from '../config.ts';
+import { getValidUserToken } from './oauth.ts';
 
 export interface SearchResultItem {
   id: string;
@@ -66,9 +67,9 @@ export function formatTime(seconds: number): string {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
-// 1. Official Spotify Web API Search (100% free with Developer Client ID/Secret)
+// 1. Official Spotify Web API Search (Works with User OAuth or Developer Client ID/Secret)
 async function searchSpotifyApi(query: string, limit = 8): Promise<SearchResultItem[]> {
-  const token = await getSpotifyApiToken();
+  const token = (await getSpotifyApiToken()) || (await getValidUserToken());
   if (!token) return [];
 
   try {
@@ -258,9 +259,9 @@ export async function resolveSpotifyUri(title: string, artist = '', isrc?: strin
   const cached = findInTrackCache(normTitle) || findInTrackCache(normFull) || (isrc ? findInTrackCache(isrc) : null);
   if (cached) return cached;
 
-  // 2. Try official Spotify API if configured
+  // 2. Try official Spotify API if configured or authenticated
   try {
-    const token = await getSpotifyApiToken();
+    const token = (await getSpotifyApiToken()) || (await getValidUserToken());
     if (token) {
       const q = isrc ? `isrc:${isrc}` : `track:${title} artist:${artist}`;
       const res = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=track&limit=1`, {

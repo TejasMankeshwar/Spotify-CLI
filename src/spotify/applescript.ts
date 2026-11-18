@@ -1,7 +1,8 @@
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { TrackInfo, PlayerState } from './types.ts';
 import { searchTracks, resolveSpotifyUri } from './search.ts';
+import { saveLastSession, loadLastSession } from '../config.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -21,17 +22,45 @@ export async function runAppleScript(script: string): Promise<string> {
   }
 }
 
+let lastRunningCheck = 0;
+let lastRunningResult = false;
+
 export async function isSpotifyRunning(): Promise<boolean> {
-  try {
-    const res = await runAppleScript('application "Spotify" is running');
-    return res === 'true';
-  } catch {
-    return false;
+  const now = Date.now();
+  if (now - lastRunningCheck < 350) {
+    return lastRunningResult;
   }
+
+  try {
+    const res = await runAppleScript(`
+tell application "System Events"
+  set isRunning to (exists (processes where name is "Spotify"))
+  if isRunning then return "true"
+end tell
+try
+  if application "Spotify" is running then return "true"
+end try
+return "false"`);
+    lastRunningResult = res.toLowerCase().includes('true');
+  } catch {
+    lastRunningResult = false;
+  }
+  lastRunningCheck = Date.now();
+  return lastRunningResult;
 }
 
-export async function launchSpotify(): Promise<void> {
-  await runAppleScript('tell application "Spotify" to activate');
+export async function launchSpotify(hidden = true): Promise<void> {
+  try {
+    if (hidden) {
+      await runAppleScript(`
+tell application "Spotify" to launch
+try
+  tell application "System Events" to set visible of process "Spotify" to false
+end try`);
+    } else {
+      await runAppleScript('tell application "Spotify" to activate');
+    }
+  } catch {}
 }
 
 export function formatTime(seconds: number): string {
@@ -42,13 +71,13 @@ export function formatTime(seconds: number): string {
 }
 
 export async function getTrackInfo(): Promise<TrackInfo | null> {
-  const isRunning = await isSpotifyRunning();
-  if (!isRunning) {
-    return null;
-  }
-
-  // Single atomic AppleScript query for maximum performance and reliability
+  // Single atomic AppleScript query with zero separate running-check overhead
   const script = `
+tell application "System Events"
+  set isRunning to (exists (processes where name is "Spotify"))
+  if not isRunning then return "NOT_RUNNING"
+end tell
+
 tell application "Spotify"
   try
     set tName to name of current track
@@ -71,7 +100,7 @@ end tell
 
   try {
     const raw = await runAppleScript(script);
-    if (raw === 'NO_TRACK' || !raw.includes(DELIMITER)) {
+    if (raw === 'NOT_RUNNING' || raw === 'NO_TRACK' || !raw.includes(DELIMITER)) {
       return null;
     }
 
@@ -94,7 +123,7 @@ end tell
     const durationSec = durationMs > 0 ? durationMs / 1000 : 0;
     const progressPercent = durationSec > 0 ? Math.min(100, (positionSec / durationSec) * 100) : 0;
 
-    return {
+    const trackInfo: TrackInfo = {
       id,
       name,
       artist,
@@ -110,39 +139,66 @@ end tell
       isShuffling,
       spotifyUrl,
     };
+
+    if (id && (state === 'playing' || state === 'paused')) {
+      const trackUri = id.startsWith('spotify:') ? id : `spotify:track:${id}`;
+      saveLastSession({
+        trackUri,
+        trackName: name,
+        artist,
+        album,
+        positionMs: positionSec * 1000,
+        durationMs,
+      });
+    }
+
+    return trackInfo;
   } catch (err: any) {
     return null;
   }
 }
 
 export async function play(): Promise<void> {
+  const isRunning = await isSpotifyRunning();
+  if (!isRunning) {
+    return;
+  }
+
   const script = `
 tell application "Spotify"
   try
-    if player state is paused then
-      set curVol to sound volume
-      set sound volume to (round (curVol / 2))
-      play
-      repeat with v from (round (curVol / 2)) to curVol by 10
-        set sound volume to v
-        delay 0.012
-      end repeat
-      if (curVol mod 20) is not 0 and curVol < 100 and curVol > 0 then
-        set sound volume to (curVol + 1)
-      else
-        set sound volume to curVol
-      end if
-    else
-      play
+    set curVol to sound volume
+    if curVol < 20 then
+      set sound volume to 75
     end if
+    «event spfyPlay»
   on error
-    play
+    try
+      play
+    end try
   end try
 end tell`;
-  await runAppleScript(script);
+  try {
+    await runAppleScript(script);
+  } catch {}
 }
 
 export async function pause(): Promise<void> {
+  try {
+    const cur = await getTrackInfo();
+    if (cur && cur.id) {
+      const trackUri = cur.id.startsWith('spotify:') ? cur.id : `spotify:track:${cur.id}`;
+      saveLastSession({
+        trackUri,
+        trackName: cur.name,
+        artist: cur.artist,
+        album: cur.album,
+        positionMs: cur.positionSec * 1000,
+        durationMs: cur.durationMs,
+      });
+    }
+  } catch {}
+
   const script = `
 tell application "Spotify"
   try
@@ -524,57 +580,97 @@ end tell`;
   }
 }
 
-export async function playUri(uri: string, inBackground = true, smooth = true): Promise<void> {
-  const cleanUri = uri.trim();
-  if (smooth) {
-    const script = `
-tell application "Spotify"
-  set isPl to false
-  try
-    if player state is playing then set isPl to true
-  end try
-  if isPl then
-    set curVol to sound volume
-    set stepOut to round (curVol / 5)
-    if stepOut < 1 then set stepOut to 1
-    repeat with v from (curVol - stepOut) to 0 by (-stepOut)
-      set sound volume to v
-      delay 0.012
-    end repeat
-    set sound volume to 0
-    play track "${cleanUri}"
-    try
-      tell application "System Events" to set visible of process "Spotify" to false
-    end try
-    set stepIn to round (curVol / 6)
-    if stepIn < 1 then set stepIn to 1
-    repeat with v from stepIn to curVol by stepIn
-      set sound volume to v
-      delay 0.015
-    end repeat
-    if (curVol mod 20) is not 0 and curVol < 100 and curVol > 0 then
-      set sound volume to (curVol + 1)
-    else
-      set sound volume to curVol
-    end if
-  else
-    play track "${cleanUri}"
-    try
-      tell application "System Events" to set visible of process "Spotify" to false
-    end try
-  end if
-end tell`;
-    await runAppleScript(script);
-  } else if (inBackground) {
-    const script = `
-tell application "Spotify" to play track "${cleanUri}"
-try
-  tell application "System Events" to set visible of process "Spotify" to false
-end try`;
-    await runAppleScript(script);
-  } else {
-    await runAppleScript(`tell application "Spotify" to play track "${cleanUri}"`);
+export async function playInContext(
+  trackUri: string,
+  contextUri?: string,
+  positionSec?: number,
+  inBackground = true
+): Promise<void> {
+  const isRunning = await isSpotifyRunning();
+  if (!isRunning) {
+    await launchSpotify(inBackground);
+    await new Promise((r) => setTimeout(r, 600));
   }
+
+  const bgSnippet = inBackground
+    ? `\ntry\n  tell application "System Events" to set visible of process "Spotify" to false\nend try`
+    : '';
+
+  const seekSnippet =
+    typeof positionSec === 'number' && positionSec > 0
+      ? `\ntry\n  delay 0.35\n  set player position to ${Math.round(positionSec)}\nend try`
+      : '';
+
+  let script: string;
+  if (contextUri) {
+    script = `
+tell application "Spotify"
+  try
+    play track "${trackUri}" in context "${contextUri}"
+  on error
+    try
+      play track "${trackUri}"
+    on error
+      «event spfyPCtx» "${trackUri}"
+    end try
+  end try${seekSnippet}
+  try
+    if sound volume < 20 then set sound volume to 75
+  end try
+end tell${bgSnippet}`;
+  } else {
+    script = `
+tell application "Spotify"
+  try
+    play track "${trackUri}"
+  on error
+    «event spfyPCtx» "${trackUri}"
+  end try${seekSnippet}
+  try
+    if sound volume < 20 then set sound volume to 75
+  end try
+end tell${bgSnippet}`;
+  }
+
+  try {
+    await runAppleScript(script);
+  } catch {}
+}
+
+export async function playUri(uri: string, inBackground = true): Promise<void> {
+  const cleanUri = uri.trim();
+
+  // If Spotify is not currently running, launch it silently in the background
+  const isRunning = await isSpotifyRunning();
+  if (!isRunning) {
+    await launchSpotify(inBackground);
+    await new Promise((r) => setTimeout(r, 600));
+  }
+
+  const bgSnippet = inBackground
+    ? `\ntry\n  tell application "System Events" to set visible of process "Spotify" to false\nend try`
+    : '';
+
+  // Use raw AppleEvent spfyPCtx to guarantee 100% clean compilation
+  const script = `
+tell application "Spotify"
+  try
+    «event spfyPCtx» "${cleanUri}"
+  on error
+    try
+      open location "${cleanUri}"
+    end try
+  end try
+  try
+    if sound volume < 20 then
+      set sound volume to 75
+    end if
+  end try
+end tell${bgSnippet}`;
+
+  try {
+    await runAppleScript(script);
+  } catch {}
 }
 
 export interface PlaySearchResult {
@@ -586,20 +682,27 @@ export interface PlaySearchResult {
 export async function playSearch(query: string): Promise<PlaySearchResult> {
   const cleanQuery = query.trim();
 
-  // 1. Try fast direct resolution (cache + Genius + MusicBrainz + Spotify API)
-  try {
-    const directUri = await resolveSpotifyUri(cleanQuery);
-    if (directUri) {
-      await playUri(directUri, true);
-      return {
-        success: true,
-        trackName: cleanQuery,
-        hasDirectUri: true,
-      };
-    }
-  } catch {}
+  // If input is already a Spotify URI or link
+  if (cleanQuery.startsWith('spotify:')) {
+    await playUri(cleanQuery, true);
+    return {
+      success: true,
+      trackName: cleanQuery,
+      hasDirectUri: true,
+    };
+  }
+  const linkMatch = cleanQuery.match(/open\.spotify\.com\/track\/([a-zA-Z0-9]+)/);
+  if (linkMatch) {
+    const uri = `spotify:track:${linkMatch[1]}`;
+    await playUri(uri, true);
+    return {
+      success: true,
+      trackName: uri,
+      hasDirectUri: true,
+    };
+  }
 
-  // 2. Structured catalog search (Deezer/iTunes -> Spotify URI)
+  // 1. Structured catalog search (Deezer/iTunes/Spotify) to get proper name and artist
   try {
     const results = await searchTracks(cleanQuery, 3);
     if (results.length > 0) {
@@ -620,7 +723,19 @@ export async function playSearch(query: string): Promise<PlaySearchResult> {
     }
   } catch {}
 
-  // 3. Fallback: if no direct URI found yet, return false so REPL can notify user cleanly
+  // 2. Direct URI resolution (cache, Genius, MusicBrainz)
+  try {
+    const directUri = await resolveSpotifyUri(cleanQuery);
+    if (directUri) {
+      await playUri(directUri, true);
+      return {
+        success: true,
+        trackName: cleanQuery,
+        hasDirectUri: true,
+      };
+    }
+  } catch {}
+
   return {
     success: false,
     trackName: cleanQuery,

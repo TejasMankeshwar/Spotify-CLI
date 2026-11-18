@@ -114,6 +114,7 @@ export function getDaemonStatus(): DaemonStatus {
 }
 
 export function startLibrespotDaemon(options?: {
+  accessToken?: string;
   enableOauth?: boolean;
   oauthPort?: number;
   verbose?: boolean;
@@ -143,6 +144,18 @@ export function startLibrespotDaemon(options?: {
   if (!fs.existsSync(audioCache)) fs.mkdirSync(audioCache, { recursive: true });
   if (!fs.existsSync(systemCache)) fs.mkdirSync(systemCache, { recursive: true });
 
+  const credsFile = path.join(systemCache, 'credentials.json');
+  let token = options?.accessToken;
+  if (!token) {
+    const authFile = path.join(getConfigDir(), 'auth.json');
+    try {
+      if (fs.existsSync(authFile)) {
+        const parsed = JSON.parse(fs.readFileSync(authFile, 'utf-8'));
+        token = parsed.accessToken;
+      }
+    } catch {}
+  }
+
   const args: string[] = [
     '--name',
     'Spotify-CLI',
@@ -156,6 +169,13 @@ export function startLibrespotDaemon(options?: {
     systemCache,
     '--enable-volume-normalisation',
   ];
+
+  if (!fs.existsSync(credsFile)) {
+    return {
+      success: false,
+      message: 'Spotify authentication required for headless streaming. Run /auth to link your Spotify Premium account.',
+    };
+  }
 
   if (options?.enableOauth) {
     args.push('--enable-oauth');
@@ -211,3 +231,139 @@ export function stopLibrespotDaemon(): { success: boolean; message: string } {
     }
   }
 }
+
+export async function startLibrespotOAuth(): Promise<{
+  success: boolean;
+  message: string;
+}> {
+  const binary = getLibrespotBinaryPath();
+  if (!binary) {
+    return {
+      success: false,
+      message: 'librespot binary not found. Install it with: brew install librespot',
+    };
+  }
+
+  stopLibrespotDaemon();
+  await new Promise((r) => setTimeout(r, 250));
+
+  const cacheDir = getLibrespotCacheDir();
+  const audioCache = path.join(cacheDir, 'cache');
+  const systemCache = path.join(cacheDir, 'system');
+  const credsFile = path.join(systemCache, 'credentials.json');
+
+  if (!fs.existsSync(audioCache)) fs.mkdirSync(audioCache, { recursive: true });
+  if (!fs.existsSync(systemCache)) fs.mkdirSync(systemCache, { recursive: true });
+
+  // Clean stale/invalid credentials so librespot triggers the OAuth sign-in flow
+  try {
+    if (fs.existsSync(credsFile)) {
+      fs.unlinkSync(credsFile);
+    }
+  } catch {}
+
+  const port = 5588;
+  const args: string[] = [
+    '--name',
+    'Spotify-CLI',
+    '--bitrate',
+    '320',
+    '--backend',
+    'rodio',
+    '--cache',
+    audioCache,
+    '--system-cache',
+    systemCache,
+    '--enable-volume-normalisation',
+    '--enable-oauth',
+    '--oauth-port',
+    port.toString(),
+  ];
+
+  return new Promise((resolve) => {
+    let resolved = false;
+    const child = spawn(binary, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+
+    let browserOpened = false;
+
+    const handleData = (chunk: Buffer) => {
+      const text = chunk.toString();
+      const match = text.match(/Browse to:\s+(https:\/\/accounts\.spotify\.com\/[^\s]+)/i);
+      if (match && !browserOpened) {
+        browserOpened = true;
+        const authUrl = match[1];
+        process.stdout.write(`\n  If your browser does not open automatically, open this URL:\n  \x1b[38;2;29;185;84m${authUrl}\x1b[0m\n\n`);
+        try {
+          spawn('open', [authUrl], { stdio: 'ignore' });
+        } catch {}
+      }
+
+      if (text.includes('Authenticated as') || text.includes('Country:') || text.includes('active device is')) {
+        if (!resolved) {
+          resolved = true;
+          // Wait 600ms for credentials.json to be flushed to disk, then spawn detached background daemon
+          setTimeout(() => {
+            try {
+              child.kill('SIGTERM');
+            } catch {}
+            const daemonRes = startLibrespotDaemon();
+            resolve({
+              success: daemonRes.success,
+              message: daemonRes.success
+                ? 'Successfully authenticated Spotify Premium account! Headless playback ready.'
+                : (daemonRes.message || 'Authenticated, but headless daemon failed to start.'),
+            });
+          }, 600);
+        }
+      }
+    };
+
+    child.stdout?.on('data', handleData);
+    child.stderr?.on('data', handleData);
+
+    child.on('error', (err) => {
+      if (!resolved) {
+        resolved = true;
+        resolve({ success: false, message: `Failed to launch librespot: ${err.message}` });
+      }
+    });
+
+    child.on('exit', (code) => {
+      if (!resolved) {
+        resolved = true;
+        resolve({
+          success: false,
+          message: `librespot exited with code ${code}.`,
+        });
+      }
+    });
+
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        try { child.kill('SIGTERM'); } catch {}
+        resolve({ success: false, message: 'Authentication timed out after 2 minutes.' });
+      }
+    }, 120000);
+  });
+}
+
+export async function startLibrespotInteractiveAuth(): Promise<{
+  success: boolean;
+  message: string;
+  url?: string;
+}> {
+  // 1. Ensure Web API OAuth is linked
+  const { getValidUserToken, startInteractiveOAuthLogin } = await import('./oauth.ts');
+  const token = await getValidUserToken();
+  if (!token) {
+    const webRes = await startInteractiveOAuthLogin();
+    if (!webRes.success) {
+      return webRes;
+    }
+  }
+
+  // 2. Ensure librespot streaming session is authenticated
+  return startLibrespotOAuth();
+}
+

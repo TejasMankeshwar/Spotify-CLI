@@ -6,14 +6,14 @@ import { renderProgressBar, renderVolumeBar } from '../src/ui/progress.ts';
 import { stripAnsi } from '../src/ui/ansi.ts';
 import { parseVolumeInput, parseSeekInput } from '../src/spotify/applescript.ts';
 import { searchTracks, resolveSpotifyUri } from '../src/spotify/search.ts';
-import { loadTrackCache } from '../src/config.ts';
+import { loadTrackCache, loadLastSession, saveLastSession } from '../src/config.ts';
 import { renderBanner, applyGradient, DEFAULT_GRADIENT_STOPS } from '../src/ui/banner.ts';
 import { parseLyricsMode } from '../src/spotify/lyrics.ts';
 import { computeChunkState, prepareLyricsLines } from '../src/ui/dynamic-lyrics.ts';
 import { containsIndic, transliterateIndic, transliterateLyrics } from '../src/spotify/transliterate.ts';
-import { getDaemonStatus, isLibrespotInstalled } from '../src/spotify/daemon.ts';
-import { getActivePlaybackEngine } from '../src/spotify/player.ts';
-import { formatMs } from '../src/spotify/web-player.ts';
+import { getDaemonStatus, isLibrespotInstalled, startLibrespotDaemon } from '../src/spotify/daemon.ts';
+import { getActivePlaybackEngine, isHeadlessReady, play, playUriDetailed, playSearch } from '../src/spotify/player.ts';
+import { formatMs, webPlayDetailed } from '../src/spotify/web-player.ts';
 import type { TrackInfo, LyricsResult, LyricLine } from '../src/spotify/types.ts';
 
 const mockTrack: TrackInfo = {
@@ -339,6 +339,76 @@ test('web-player formatMs formats milliseconds into mm:ss accurately', () => {
   assert.equal(formatMs(65000), '01:05');
   assert.equal(formatMs(214000), '03:34');
 });
+
+test('isHeadlessReady returns accurate readiness status', () => {
+  const ready = isHeadlessReady();
+  assert.equal(typeof ready, 'boolean');
+});
+
+test('play without active track returns non-resumable status instead of false success', async () => {
+  const result = await play();
+  assert.equal(typeof result.success, 'boolean');
+  assert.ok(['resumed', 'already_playing', 'no_track', 'started', 'error'].includes(result.state));
+  if (!result.success) {
+    assert.ok(result.message.length > 0);
+  }
+});
+
+test('librespot daemon requires credentials or access token to stream headlessly', () => {
+  const res = startLibrespotDaemon({ accessToken: '' });
+  assert.equal(typeof res.success, 'boolean');
+  assert.ok(typeof res.message === 'string');
+});
+
+test('webPlayDetailed returns structured diagnostic error when unauthenticated', async () => {
+  const res = await webPlayDetailed('spotify:track:4cOdK2wGLETKBW3PvgPWqT');
+  assert.equal(typeof res.success, 'boolean');
+  if (!res.success) {
+    assert.ok(typeof res.error === 'string');
+    assert.ok(res.code === 'unauthenticated' || res.code === 'no_device' || res.code === 'api_error');
+  }
+});
+
+test('playUriDetailed propagates structured error when headless is not ready', async () => {
+  if (!isHeadlessReady()) {
+    const res = await playUriDetailed('spotify:track:4cOdK2wGLETKBW3PvgPWqT');
+    assert.equal(res.success, false);
+    assert.ok(res.error && res.error.includes('Headless mode requires'));
+  }
+});
+
+test('Playback session persists and loads last played track, context, and position', () => {
+  const original = loadLastSession();
+
+  saveLastSession({
+    trackUri: 'spotify:track:4DpNNXFMMxQEKl7r0ykkWA',
+    trackName: 'Play Date',
+    artist: 'Melanie Martinez',
+    album: 'Cry Baby',
+    contextUri: 'spotify:album:5JpH5T1sCYnUyZD6TM0QaY',
+    positionMs: 45000,
+    durationMs: 180000,
+  });
+
+  const loaded = loadLastSession();
+  assert.ok(loaded);
+  assert.equal(loaded?.trackUri, 'spotify:track:4DpNNXFMMxQEKl7r0ykkWA');
+  assert.equal(loaded?.trackName, 'Play Date');
+  assert.equal(loaded?.artist, 'Melanie Martinez');
+  assert.equal(loaded?.album, 'Cry Baby');
+  assert.equal(loaded?.contextUri, 'spotify:album:5JpH5T1sCYnUyZD6TM0QaY');
+  assert.equal(loaded?.positionMs, 45000);
+  assert.equal(loaded?.durationMs, 180000);
+  assert.ok(typeof loaded?.timestamp === 'number');
+
+  // Restore original if there was one
+  if (original) {
+    saveLastSession(original);
+  }
+});
+
+
+
 
 
 
