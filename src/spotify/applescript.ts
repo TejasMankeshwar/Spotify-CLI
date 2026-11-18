@@ -49,14 +49,44 @@ return "false"`);
   return lastRunningResult;
 }
 
+export async function dismissSpotifyWindow(): Promise<void> {
+  try {
+    await runAppleScript(`
+tell application "System Events"
+  tell process "Spotify"
+    try
+      click button 1 of window 1
+    end try
+  end tell
+end tell`);
+  } catch {}
+}
+
+export async function getSpotifyWindowCount(): Promise<number> {
+  try {
+    const res = await runAppleScript(`
+tell application "System Events"
+  if exists (processes where name is "Spotify") then
+    return count of windows of process "Spotify"
+  end if
+  return "0"
+end tell`);
+    return parseInt(res, 10) || 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function launchSpotify(hidden = true): Promise<void> {
   try {
     if (hidden) {
-      await runAppleScript(`
-tell application "Spotify" to launch
-try
-  tell application "System Events" to set visible of process "Spotify" to false
-end try`);
+      try {
+        await execFileAsync('open', ['-j', '-g', '-a', '/Applications/Spotify.app', '--args', '--minimized']);
+      } catch {
+        await runAppleScript('tell application "Spotify" to launch');
+      }
+      await new Promise((r) => setTimeout(r, 450));
+      await dismissSpotifyWindow();
     } else {
       await runAppleScript('tell application "Spotify" to activate');
     }
@@ -593,7 +623,7 @@ export async function playInContext(
   }
 
   const bgSnippet = inBackground
-    ? `\ntry\n  tell application "System Events" to set visible of process "Spotify" to false\nend try`
+    ? `\ntry\n  tell application "System Events"\n    tell process "Spotify"\n      click button 1 of window 1\n    end tell\n  end tell\nend try`
     : '';
 
   const seekSnippet =
@@ -635,6 +665,9 @@ end tell${bgSnippet}`;
   try {
     await runAppleScript(script);
   } catch {}
+  if (inBackground) {
+    await dismissSpotifyWindow();
+  }
 }
 
 export async function playUri(uri: string, inBackground = true): Promise<void> {
@@ -648,7 +681,7 @@ export async function playUri(uri: string, inBackground = true): Promise<void> {
   }
 
   const bgSnippet = inBackground
-    ? `\ntry\n  tell application "System Events" to set visible of process "Spotify" to false\nend try`
+    ? `\ntry\n  tell application "System Events"\n    tell process "Spotify"\n      click button 1 of window 1\n    end tell\n  end tell\nend try`
     : '';
 
   // Use raw AppleEvent spfyPCtx to guarantee 100% clean compilation
@@ -671,6 +704,9 @@ end tell${bgSnippet}`;
   try {
     await runAppleScript(script);
   } catch {}
+  if (inBackground) {
+    await dismissSpotifyWindow();
+  }
 }
 
 export interface PlaySearchResult {

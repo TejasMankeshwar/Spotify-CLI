@@ -240,6 +240,7 @@ export async function play(uri?: string): Promise<PlayResult> {
             after.positionFormatted = applescript.formatTime(positionSec);
           } catch {}
         }
+        await applescript.dismissSpotifyWindow();
 
         const track = after || {
           id: session.trackUri,
@@ -539,6 +540,8 @@ export {
   formatTime,
   launchSpotify,
   playInContext,
+  dismissSpotifyWindow,
+  getSpotifyWindowCount,
 } from './applescript.ts';
 
 export {
